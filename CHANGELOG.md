@@ -1,6 +1,18 @@
-# Changelog
+# PayloadCMS SQL Database Adapter Changelog
 
-## 0.0.02 - 2025-03-27
+## 0.0.03 (2023-10-15)
+
+### Added
+
+- Transaction support through Drizzle ORM, matching the pattern used in official PayloadCMS adapters
+- Improved connection management
+
+### Fixed
+
+- Type definitions for adapter interfaces
+- Improved error handling during connection failures
+
+## 0.0.02 (2023-10-10)
 
 ### Added
 
@@ -20,10 +32,30 @@
 
 ## Future Plans
 
+### High Priority
+
+- Add transaction support for atomic operations
 - Fix TypeScript build issues
-- Add support for more field types
-- Add support for versions and localization
-- Add more advanced query features
-- Add better error handling and logging
+- Add support for hooks (collection-level and field-level)
+- Implement versioning support
+- Add proper access control integration
+
+### Medium Priority
+
+- Support for all field types:
+  - Array fields with nested items
+  - Blocks/flex content
+  - Rich text and Lexical editors
+  - Upload fields
+  - Group and tab fields
+- Add localization support for multi-language content
+- Implement more advanced query features
+- Improve error handling and logging
+
+### Low Priority
+
 - Add migration support
-- Add better documentation
+- Add admin UI customizations for MySQL-specific features
+- Improve performance optimizations
+- Add better documentation and examples
+- Implement automated testing

@@ -1,23 +1,29 @@
-# MySQL Database Adapter for PayloadCMS
+# Payload SQL Database Adapter
 
-This package provides a MySQL database adapter for PayloadCMS, allowing you to use MySQL as your database backend instead of MongoDB.
+A SQL database adapter for PayloadCMS, with support for MySQL.
+
+> **Alpha Development**: This package is in active development and should not be used in production.
 
 ## Features
 
-- Full CRUD operations for PayloadCMS collections
-- Support for relationships between collections
-- Compatible with PayloadCMS 3.x
+- ✅ MySQL database support
+- ✅ Automatic table and schema management
+- ✅ Relationship support with junction tables
+- ⬜ Migration support
+- ⬜ Advanced query filtering
+- ⬜ Sorting support
+- ⬜ Full text search
 
 ## Installation
 
 ```bash
-npm install @payloadcmsdirectory/db-sql
+npm install @payload-plugins/sql
 ```
 
 ## Usage
 
 ```typescript
-import { sqlAdapter } from "@payloadcmsdirectory/db-sql";
+import { sqlAdapter } from "@payload-plugins/sql";
 import { buildConfig } from "payload/config";
 
 const config = buildConfig({
@@ -55,6 +61,12 @@ The MySQL adapter accepts the following options:
 | `pool.database` | String | MySQL database name                            |
 | `pool.port`     | Number | MySQL port (optional, defaults to 3306)        |
 | `prefix`        | String | Table prefix (optional, defaults to no prefix) |
+
+## Transactions
+
+The adapter supports MySQL transactions through Drizzle ORM to ensure data consistency. Transactions are handled internally by the adapter when needed for operations that require atomic changes across multiple tables.
+
+The transaction support is seamlessly integrated with PayloadCMS operations, following the same pattern as the official SQLite and PostgreSQL adapters. No additional configuration is required to enable transaction support.
 
 ## Supported Field Types
 

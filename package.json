@@ -1,6 +1,6 @@
 {
   "name": "@payloadcmsdirectory/db-sql",
-  "version": "0.0.02",
+  "version": "0.0.2",
   "description": "SQL database adapter for PayloadCMS",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

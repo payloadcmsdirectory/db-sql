@@ -1,7 +1,3 @@
-import type { Pool } from "mysql2/promise";
-import type { Payload } from "payload";
-import { createPool } from "mysql2/promise";
-
 import type {
   Collection,
   CollectionConfig,
@@ -17,13 +13,18 @@ import type {
   UpdateOneArgs,
   Where,
 } from "./types";
-import { drizzle } from "./drizzle-proxy/mysql";
+import { buildDrizzleTable, setColumnID } from "./schema";
 import {
   buildRelationshipTable,
   createRelationshipDrizzleTable,
   processDocumentRelationships,
 } from "./relationships";
-import { buildDrizzleTable, setColumnID } from "./schema";
+
+import type { Payload } from "payload";
+import type { Pool } from "mysql2/promise";
+import { createPool } from "mysql2/promise";
+import { drizzle } from "./drizzle-proxy/mysql";
+import { eq } from "drizzle-orm";
 
 /**
  * MySQL Database Adapter for PayloadCMS
@@ -91,7 +92,7 @@ export const sqlAdapter = (options: SQLAdapterOptions): MySQLAdapter => {
 
   // Create MySQL connection pool
   let pool: Pool;
-  let db: ReturnType<typeof drizzle> | null = null;
+  let db: ReturnType<typeof drizzle>;
 
   // Initialize collections registry
   const collections: Record<string, Collection> = {};
@@ -393,89 +394,69 @@ export const sqlAdapter = (options: SQLAdapterOptions): MySQLAdapter => {
     draft = false,
   }: CreateArgs): Promise<any> => {
     try {
+      // Get the table name for the collection
       const tableName =
         tableNameMap.get(collection) || `${prefix}${collection}`;
-      const collectionConfig = collections[collection];
 
-      // Process fields to separate relationship fields
-      const { relationshipFields, normalFields } = processFields(
-        collectionConfig?.fields,
-      );
+      // Execute the query within a transaction
+      return await db.transaction(async (tx) => {
+        // Create the record
+        const insertResult = await tx
+          .insert(tables[tableName])
+          .values(data)
+          .execute();
 
-      // Extract fields for the main table
-      const mainFields: Record<string, any> = {};
-      const relationshipData: Record<string, any> = {};
+        // Get the inserted ID (fallback to data.id if insertId not available)
+        const insertId = (insertResult as any).insertId || data.id;
 
-      Object.entries(data).forEach(([key, value]) => {
-        const fieldConfig = (collectionConfig?.fields || []).find(
-          (f) => f.name === key,
+        // Process relationships if needed
+        const collectionConfig = collections[collection];
+        const { relationshipFields } = processFields(
+          collectionConfig?.fields || [],
         );
 
-        if (fieldConfig && fieldConfig.type === "relationship") {
-          relationshipData[key] = value;
-        } else {
-          mainFields[key] = value;
-        }
-      });
+        for (const field of relationshipFields) {
+          const fieldName = field.name;
+          const value = data[fieldName];
 
-      // Create the main document
-      const fieldNames = Object.keys(mainFields);
-      const placeholders = fieldNames.map(() => "?").join(",");
-      const values = Object.values(mainFields);
+          if (value !== undefined && typeof field.relationTo === "string") {
+            // Delete existing relationships
+            await tx
+              .delete(tables[`${prefix}${collection}_${field.relationTo}_rels`])
+              .where(
+                eq(
+                  tables[`${prefix}${collection}_${field.relationTo}_rels`]
+                    .parentId,
+                  insertId,
+                ),
+              )
+              .execute();
 
-      if (fieldNames.length === 0) {
-        fieldNames.push("id");
-        placeholders.concat("DEFAULT");
-      }
-
-      const [result] = await pool.query(
-        `INSERT INTO ${tableName} (${fieldNames.join(",")}) VALUES (${placeholders})`,
-        values,
-      );
-
-      const insertId = (result as any).insertId;
-
-      // Process relationships
-      for (const field of relationshipFields) {
-        const fieldName = field.name;
-        const value = relationshipData[fieldName];
-
-        if (value !== undefined && typeof field.relationTo === "string") {
-          // Delete existing relationships
-          const relationTableName = `${prefix}${collection}_${field.relationTo}_rels`;
-          await pool.query(
-            `DELETE FROM ${relationTableName} WHERE parentId = ?`,
-            [insertId],
-          );
-
-          // Create new relationships
-          if (value !== null) {
-            await createRelationshipDrizzleTable({
-              adapter: {
-                client: pool,
-                tables,
-                tablePrefix: prefix,
-                tableNameMap,
-              } as any,
-              fromCollection: collection,
-              fromId: insertId,
-              toCollection: field.relationTo,
-              relationField: fieldName,
-              value,
-            });
+            // Create new relationships
+            if (value !== null) {
+              await createRelationshipDrizzleTable({
+                adapter: {
+                  client: pool,
+                  db,
+                  tables,
+                  tableNameMap,
+                  tablePrefix: prefix,
+                } as any,
+                fromCollection: collection,
+                fromId: insertId,
+                toCollection: field.relationTo,
+                relationField: fieldName,
+                value,
+              });
+            }
           }
         }
-      }
 
-      // Return the created document
-      return findByID({
-        collection,
-        id: insertId,
-        depth: 0,
-        req,
+        // Return the created record
+        return { id: insertId, ...data };
       });
     } catch (error) {
-      console.error(`Error creating document in ${collection}:`, error);
+      console.error(`Error creating record in ${collection}:`, error);
       throw error;
     }
   };
@@ -488,85 +469,67 @@ export const sqlAdapter = (options: SQLAdapterOptions): MySQLAdapter => {
     req,
   }: UpdateOneArgs): Promise<any> => {
     try {
+      // Get the table name for the collection
       const tableName =
         tableNameMap.get(collection) || `${prefix}${collection}`;
-      const collectionConfig = collections[collection];
 
-      // Process fields to separate relationship fields
-      const { relationshipFields, normalFields } = processFields(
-        collectionConfig?.fields,
-      );
+      // Execute the query within a transaction
+      return await db.transaction(async (tx) => {
+        // Update the record
+        await tx
+          .update(tables[tableName])
+          .set(data)
+          .where(eq(tables[tableName].id, id))
+          .execute();
 
-      // Extract fields for the main table
-      const mainFields: Record<string, any> = {};
-      const relationshipData: Record<string, any> = {};
-
-      Object.entries(data).forEach(([key, value]) => {
-        const fieldConfig = (collectionConfig?.fields || []).find(
-          (f) => f.name === key,
+        // Process relationships if needed
+        const collectionConfig = collections[collection];
+        const { relationshipFields } = processFields(
+          collectionConfig?.fields || [],
         );
 
-        if (fieldConfig && fieldConfig.type === "relationship") {
-          relationshipData[key] = value;
-        } else {
-          mainFields[key] = value;
-        }
-      });
+        for (const field of relationshipFields) {
+          const fieldName = field.name;
+          const value = data[fieldName];
 
-      // Update the main document
-      const fieldUpdates = Object.entries(mainFields).map(
-        ([field, _]) => `${field} = ?`,
-      );
-      const values = Object.values(mainFields);
+          if (value !== undefined && typeof field.relationTo === "string") {
+            // Delete existing relationships
+            await tx
+              .delete(tables[`${prefix}${collection}_${field.relationTo}_rels`])
+              .where(
+                eq(
+                  tables[`${prefix}${collection}_${field.relationTo}_rels`]
+                    .parentId,
+                  id,
+                ),
+              )
+              .execute();
 
-      if (fieldUpdates.length > 0) {
-        await pool.query(
-          `UPDATE ${tableName} SET ${fieldUpdates.join(", ")} WHERE id = ?`,
-          [...values, id],
-        );
-      }
-
-      // Process relationships
-      for (const field of relationshipFields) {
-        const fieldName = field.name;
-        const value = relationshipData[fieldName];
-
-        if (value !== undefined && typeof field.relationTo === "string") {
-          // Delete existing relationships
-          const relationTableName = `${prefix}${collection}_${field.relationTo}_rels`;
-          await pool.query(
-            `DELETE FROM ${relationTableName} WHERE parentId = ?`,
-            [id],
-          );
-
-          // Create new relationships
-          if (value !== null) {
-            await createRelationshipDrizzleTable({
-              adapter: {
-                client: pool,
-                tables,
-                tablePrefix: prefix,
-                tableNameMap,
-              } as any,
-              fromCollection: collection,
-              fromId: id,
-              toCollection: field.relationTo,
-              relationField: fieldName,
-              value,
-            });
+            // Create new relationships
+            if (value !== null) {
+              await createRelationshipDrizzleTable({
+                adapter: {
+                  client: pool,
+                  db,
+                  tables,
+                  tableNameMap,
+                  tablePrefix: prefix,
+                } as any,
+                fromCollection: collection,
+                fromId: id,
+                toCollection: field.relationTo,
+                relationField: fieldName,
+                value,
+              });
+            }
           }
         }
-      }
 
-      // Return the updated document
-      return findByID({
-        collection,
-        id,
-        depth: 0,
-        req,
+        // Return the updated record
+        return { id, ...data };
       });
     } catch (error) {
-      console.error(`Error updating document in ${collection}:`, error);
+      console.error(`Error updating record in ${collection}:`, error);
       throw error;
     }
   };
@@ -605,11 +568,10 @@ export const sqlAdapter = (options: SQLAdapterOptions): MySQLAdapter => {
     }
   };
 
-  // Initialize return object early to avoid "used before assigned" error
-  const adapterObject: MySQLAdapter = {
-    // MySQL pool and Drizzle instance
-    client: null as unknown as Pool, // Will be set after connect
-    db: null as any, // Will be set after connect
+  // Build adapter object with delayed connection initialization
+  const adapter: MySQLAdapter = {
+    client: undefined as unknown as Pool, // Will be set after connect
+    db: undefined as unknown as ReturnType<typeof drizzle>, // Will be set after connect
     tables,
     collections,
     tableNameMap,
@@ -619,8 +581,8 @@ export const sqlAdapter = (options: SQLAdapterOptions): MySQLAdapter => {
     connect: async () => {
       await connect();
       // Update the properties after connection
-      adapterObject.client = pool;
-      adapterObject.db = db as any;
+      adapter.client = pool;
+      adapter.db = db;
     },
     disconnect,
 
@@ -639,5 +601,5 @@ export const sqlAdapter = (options: SQLAdapterOptions): MySQLAdapter => {
     processRelationships: processDocumentRelationships as any,
   };
 
-  return adapterObject;
+  return adapter;
 };

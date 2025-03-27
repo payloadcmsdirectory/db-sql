@@ -13,6 +13,7 @@ import type {
   UpdateOneArgs,
   Where,
 } from "./types";
+
 import { sqlAdapter } from "./adapter";
 
 export * from "./drizzle-proxy";

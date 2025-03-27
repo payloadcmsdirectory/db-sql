@@ -1,11 +1,7 @@
-import type { TransactionOptions } from "@payloadcms/drizzle";
-import type {
-  MySqlDatabase,
-  MySqlPoolConnection,
-  MySqlTable,
-} from "drizzle-orm/mysql-core";
-import type { Pool } from "mysql2/promise";
-import type { DatabaseAdapter, DatabaseExtension, PushOptions } from "payload";
+import type { MySqlDatabase, MySqlTable } from "drizzle-orm/mysql-core";
+import type { Pool, PoolConnection } from "mysql2/promise";
+
+import type { DatabaseAdapter } from "payload";
 
 /**
  * Simplified type definitions
@@ -168,7 +164,7 @@ export interface MySQLAdapter extends SQLAdapter {
   tables: Record<string, MySqlTable>;
   tableNameMap: Map<string, string>;
   tablePrefix: string;
-  transactionClient?: MySqlPoolConnection;
+  transactionClient?: PoolConnection;
 }
 
 /**
@@ -255,7 +251,7 @@ export interface Args extends MySQLAdapterArgs {
   /**
    * Options passed to push
    */
-  push?: PushOptions;
+  push?: any;
   /**
    * Schema name
    */
@@ -275,7 +271,7 @@ export interface Args extends MySQLAdapterArgs {
   /**
    * Transaction options
    */
-  transactionOptions?: TransactionOptions;
+  transactionOptions?: any;
   /**
    * Logger
    */

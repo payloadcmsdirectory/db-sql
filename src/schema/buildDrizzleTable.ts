@@ -1,118 +1,95 @@
-import { sql } from "drizzle-orm";
 import {
-  bigint,
-  boolean,
-  datetime,
-  json as drizzleJson,
-  int,
-  mysqlEnum,
+  index,
   mysqlTable,
-  text,
-  varchar,
+  primaryKey,
+  uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
-import type {
-  BuildDrizzleTableArgs,
-  RawColumn,
-  RawTable,
-  SQLAdapter,
-} from "../types";
+import type { BuildDrizzleTableArgs } from "../types";
+import { sql } from "../drizzle-proxy";
 
 /**
- * Builds a MySQL table using Drizzle ORM
- *
- * @param options Object containing table configuration
- * @returns The created table
+ * Builds a Drizzle table schema from a raw table configuration
  */
-export const buildDrizzleTable = ({
+export function buildDrizzleTable({
   adapter,
   tableName,
   tableConfig,
-}: BuildDrizzleTableArgs) => {
-  const columns: Record<string, any> = {};
+}: BuildDrizzleTableArgs) {
+  const { columns, indexes = [] } = tableConfig;
+  const drizzleColumns = {};
 
-  // Process each column definition
-  for (const [key, columnDef] of Object.entries<RawColumn>(
-    tableConfig.columns,
-  )) {
-    // Skip columns that don't have a name
-    if (!columnDef.name) continue;
+  // Process columns
+  for (const column of columns) {
+    const {
+      name,
+      type,
+      required = false,
+      primary = false,
+      defaultValue,
+      unique = false,
+    } = column;
 
-    let column;
+    // Skip if column name is empty
+    if (!name) continue;
 
-    // Create the column based on its type
-    switch (columnDef.type) {
-      case "boolean":
-        column = boolean(columnDef.name);
-        break;
-      case "enum":
-        if (columnDef.options && columnDef.options.length > 0) {
-          // Convert string[] to tuple with at least one element
-          const enumOptions =
-            columnDef.options.length > 0
-              ? ([columnDef.options[0], ...columnDef.options.slice(1)] as [
-                  string,
-                  ...string[],
-                ])
-              : (["default_value"] as [string]);
-          column = mysqlEnum(columnDef.name, enumOptions);
-        } else {
-          column = varchar(columnDef.name, { length: 255 });
-        }
-        break;
-      case "json":
-        column = drizzleJson(columnDef.name);
-        break;
-      case "number":
-        if (columnDef.autoIncrement) {
-          // Use bigint with appropriate config
-          column = bigint(columnDef.name, { mode: "number" }).autoincrement();
-        } else {
-          column = int(columnDef.name);
-        }
-        break;
-      case "timestamp":
-        column = datetime(columnDef.name, { mode: "string" });
-        break;
-      case "uuid":
-        column = varchar(columnDef.name, { length: 36 });
-        break;
-      case "varchar":
-        column = varchar(columnDef.name, { length: columnDef.length || 255 });
-        break;
-      case "text":
-      default:
-        column = text(columnDef.name);
-        break;
-    }
+    // Define column using the adapter's columnToCodeConverter
+    let drizzleColumn = adapter.generateSchema.columnToCodeConverter(
+      name,
+      type,
+      {
+        primaryKey: primary,
+        notNull: required,
+        unique,
+        default: defaultValue !== undefined ? defaultValue : undefined,
+        length: column.length,
+        options: column.options,
+      },
+    );
 
-    // Add constraints
-    if (columnDef.primaryKey) {
-      column = column.primaryKey();
-    }
-
-    if (columnDef.notNull) {
-      column = column.notNull();
-    }
-
-    // Add default values
-    if (columnDef.defaultNow) {
-      column = column.default(sql`CURRENT_TIMESTAMP`);
-    } else if (columnDef.default !== undefined && columnDef.default !== null) {
-      column = column.default(columnDef.default);
-    }
-
-    // Store the column
-    columns[key] = column;
+    // Add the column to the columns object
+    drizzleColumns[name] = drizzleColumn;
   }
 
   // Create the table
-  const table = mysqlTable(tableName, columns);
+  const table = mysqlTable(tableName, drizzleColumns);
 
-  // Store the table in the adapter's table registry
-  if (adapter && adapter.tables) {
-    adapter.tables[tableName] = table;
+  // Register indexes if any
+  if (indexes && indexes.length) {
+    for (const idx of indexes) {
+      const { fields, unique = false, name } = idx;
+
+      if (!fields || !fields.length) continue;
+
+      if (fields.length === 1) {
+        // Single column index
+        if (unique) {
+          uniqueIndex(
+            name || `idx_${tableName}_${fields[0]}`,
+            table[fields[0]],
+          );
+        } else {
+          index(name || `idx_${tableName}_${fields[0]}`, table[fields[0]]);
+        }
+      } else {
+        // Multi-column index
+        if (unique) {
+          uniqueIndex(
+            name || `idx_${tableName}_${fields.join("_")}`,
+            fields.map((field) => table[field]),
+          );
+        } else {
+          index(
+            name || `idx_${tableName}_${fields.join("_")}`,
+            fields.map((field) => table[field]),
+          );
+        }
+      }
+    }
   }
 
+  // Register the table in the adapter
+  adapter.tables[tableName] = table;
+
   return table;
-};
+}

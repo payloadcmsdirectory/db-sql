@@ -1,23 +1,24 @@
-import { bigint, varchar } from "drizzle-orm/mysql-core";
-import { v4 as uuidv4 } from "uuid";
+import { serial, varchar } from "drizzle-orm/mysql-core";
 
 import type { SetColumnIDArgs } from "../types";
 
 /**
- * Creates an ID column for a database table
+ * Sets up the ID column for a table based on configuration
  */
-export const setColumnID = ({
+export function setColumnID({
   idType = "number",
   autoIncrement = true,
-}: SetColumnIDArgs) => {
+}: SetColumnIDArgs = {}) {
   if (idType === "uuid") {
-    // UUID type ID
-    return varchar("id", { length: 36 }).notNull().primaryKey();
+    // For UUID, we use varchar
+    return varchar("id", { length: 36 });
   }
 
-  // Default numeric ID, auto-incremented
-  return bigint("id", { mode: "number" })
-    .notNull()
-    .primaryKey()
-    .autoincrement();
-};
+  // For numeric IDs, we use serial if auto-increment is enabled
+  if (autoIncrement) {
+    return serial("id").primaryKey();
+  }
+
+  // Otherwise, use varchar
+  return varchar("id", { length: 255 });
+}

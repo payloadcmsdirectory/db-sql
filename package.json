@@ -1,17 +1,28 @@
 {
   "name": "@payloadcmsdirectory/db-sql",
-  "version": "0.0.1",
-  "description": "SQL Database Adapter for PayloadCMS",
+  "version": "0.0.02",
+  "description": "SQL database adapter for PayloadCMS",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "author": "PayloadCMS",
-  "license": "MIT",
+  "keywords": [
+    "payload",
+    "cms",
+    "plugin",
+    "sql",
+    "mysql",
+    "wordpress",
+    "mariadb"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "rimraf dist && tsc",
     "dev": "tsc -w",
     "clean": "rimraf dist",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "test": "node test/simple-test.js",
+    "test:ts": "ts-node test/connection-test.ts"
   },
+  "author": "Payload CMS Directory",
+  "license": "MIT",
   "files": [
     "dist",
     "README.md",
@@ -21,25 +32,18 @@
     "type": "git",
     "url": "https://github.com/payloadcmsdirectory/db-sql.git"
   },
-  "keywords": [
-    "payload",
-    "payloadcms",
-    "sql",
-    "mysql",
-    "mariadb",
-    "database",
-    "adapter"
-  ],
-  "peerDependencies": {
-    "payload": "^2.0.0"
-  },
   "dependencies": {
-    "drizzle-orm": "^0.30.0",
+    "@payloadcms/drizzle": "3.31.0",
+    "drizzle-orm": "0.36.1",
     "mysql2": "^3.6.1"
   },
   "devDependencies": {
-    "payload": "^2.0.0",
+    "typescript": "^5.0.0",
+    "payload": "3.29.0",
     "rimraf": "^5.0.1",
-    "typescript": "^5.0.0"
+    "ts-node": "^10.9.2"
+  },
+  "peerDependencies": {
+    "payload": "3.29.0"
   }
 }

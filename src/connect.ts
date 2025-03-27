@@ -1,30 +1,57 @@
-import type { Pool } from "mysql2/promise";
-import mysql from "mysql2/promise";
+import type mysql from "mysql2/promise";
+import { drizzle } from "drizzle-orm/mysql2";
 
-import type { SQLAdapterOptions } from "./types";
+import type { MySQLAdapter } from "./types.js";
 
-/**
- * Create and test a MySQL connection
- */
-export const connect = async (options: SQLAdapterOptions): Promise<Pool> => {
+// Initialize MySQL connection and Drizzle ORM
+export async function connect(this: MySQLAdapter): Promise<void> {
+  // If the client is already defined, we don't need to connect again
+  if (this.client) {
+    return;
+  }
+
+  // Create a MySQL connection pool using the provided configuration
   try {
-    // Create the connection pool
-    const pool = mysql.createPool({
-      host: options.host,
-      user: options.user,
-      password: options.password,
-      database: options.database,
-      port: options.port || 3306,
+    const { createPool } = await import("mysql2/promise");
+    const config = this.clientConfig;
+
+    // Create the MySQL connection pool
+    const pool = createPool({
+      host: config.pool.host,
+      user: config.pool.user,
+      password: config.pool.password,
+      database: config.pool.database,
+      port: config.pool.port || 3306,
+      // Useful settings for better stability
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      // Better JSON handling
+      typeCast: function (field, next) {
+        if (field.type === "JSON") {
+          return JSON.parse(field.string());
+        }
+        return next();
+      },
     });
 
     // Test the connection
     const connection = await pool.getConnection();
     connection.release();
 
-    console.info("Successfully connected to MySQL database");
-    return pool;
+    this.client = pool as mysql.Pool;
+    this.drizzle = drizzle(pool);
+
+    this.payload.logger.info(`Connected to MySQL: ${config.pool.database}`);
+
+    if (this.resolveInitializing) {
+      this.resolveInitializing();
+    }
   } catch (error) {
-    console.error("Failed to connect to MySQL database:", error);
+    this.payload.logger.error(`Failed to connect to MySQL: ${error.message}`);
+    if (this.rejectInitializing) {
+      this.rejectInitializing(error);
+    }
     throw error;
   }
-};
+}

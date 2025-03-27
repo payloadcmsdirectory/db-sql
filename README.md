@@ -1,31 +1,17 @@
-# PayloadCMS SQL Database Adapter
+# MySQL Database Adapter for PayloadCMS
 
-> **⚠️ ALPHA DEVELOPMENT NOTICE**: This adapter is currently in early alpha development and **NOT INTENDED FOR USE** at the moment. If installed, it will require significant further development to function properly with a native PayloadCMS application. Please check back later for updates.
-
-A SQL database adapter for PayloadCMS that supports MySQL and MariaDB.
-
-## Status
-
-Currently in development (alpha). Not recommended for production use yet.
+This package provides a MySQL database adapter for PayloadCMS, allowing you to use MySQL as your database backend instead of MongoDB.
 
 ## Features
 
-- Use MySQL or MariaDB as a backend database for PayloadCMS
-- Automatic table creation and schema management
-- Support for all PayloadCMS field types
-- Simple configuration with sensible defaults
+- Full CRUD operations for PayloadCMS collections
+- Support for relationships between collections
+- Compatible with PayloadCMS 3.x
 
 ## Installation
 
 ```bash
-# pnpm
-pnpm add @payloadcmsdirectory/db-sql
-
-# npm
 npm install @payloadcmsdirectory/db-sql
-
-# yarn
-yarn add @payloadcmsdirectory/db-sql
 ```
 
 ## Usage
@@ -34,70 +20,64 @@ yarn add @payloadcmsdirectory/db-sql
 import { sqlAdapter } from "@payloadcmsdirectory/db-sql";
 import { buildConfig } from "payload/config";
 
-export default buildConfig({
-  // Your PayloadCMS configuration...
+const config = buildConfig({
+  // Your PayloadCMS configuration
+  collections: [
+    /* your collections */
+  ],
 
-  // Use SQL adapter
+  // Configure the MySQL adapter
   db: sqlAdapter({
-    host: "localhost",
-    user: "root",
-    password: "password",
-    database: "payload",
-    // Optional configuration
-    port: 3306,
-    tablePrefix: "pl_",
-    debug: false,
-    dropDatabase: false, // Development only, will drop all tables with prefix
+    pool: {
+      host: "localhost",
+      user: "username",
+      password: "password",
+      database: "payload_db",
+      port: 3306, // optional, defaults to 3306
+    },
+    prefix: "pl_", // optional table prefix
   }),
 });
+
+export default config;
 ```
 
 ## Configuration Options
 
-| Option         | Type    | Required | Default | Description                     |
-| -------------- | ------- | -------- | ------- | ------------------------------- |
-| `host`         | string  | Yes      | -       | Database hostname               |
-| `user`         | string  | Yes      | -       | Database username               |
-| `password`     | string  | Yes      | -       | Database password               |
-| `database`     | string  | Yes      | -       | Database name                   |
-| `port`         | number  | No       | 3306    | Database port                   |
-| `tablePrefix`  | string  | No       | ""      | Prefix for all tables           |
-| `debug`        | boolean | No       | false   | Enable debug logging            |
-| `dropDatabase` | boolean | No       | false   | Drop existing tables (dev only) |
+The MySQL adapter accepts the following options:
 
-## Development Status
+| Option          | Type   | Description                                    |
+| --------------- | ------ | ---------------------------------------------- |
+| `pool`          | Object | MySQL connection configuration                 |
+| `pool.host`     | String | MySQL host                                     |
+| `pool.user`     | String | MySQL username                                 |
+| `pool.password` | String | MySQL password                                 |
+| `pool.database` | String | MySQL database name                            |
+| `pool.port`     | Number | MySQL port (optional, defaults to 3306)        |
+| `prefix`        | String | Table prefix (optional, defaults to no prefix) |
 
-This adapter is currently in alpha status. The following features are implemented:
+## Supported Field Types
 
-- [x] Basic CRUD operations
-- [x] Automatic table creation from collection schema
-- [x] Support for common field types
-- [ ] Complete relationship support
-- [ ] Migration support
-- [ ] Full text search
-- [ ] Advanced query filtering
-- [ ] Complete versioning support
-- [ ] Documentation of table schemas
+The adapter supports the following PayloadCMS field types:
 
-## Database Structure
+- text
+- textarea
+- number
+- email
+- date
+- checkbox
+- relationship (including hasMany relationships)
 
-The adapter creates tables with the following structure:
+## Limitations
 
-- One table per collection, named `{prefix}{collectionSlug}`
-- Standard columns include `id`, `createdAt`, and `updatedAt`
-- Field columns are named after their field name
-- Complex fields (arrays, blocks, etc.) are stored as JSON
-- Relationship fields are handled through junction tables
+- Currently only supports MySQL databases
+- Some advanced PayloadCMS features like versions are not yet supported
 
-## Known Issues
+## Testing
 
-- Some TypeScript type compatibility issues with PayloadCMS core
-- Relationship fields need more complete implementation
-- Missing support for advanced query filtering
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+```bash
+npm run test
+```
 
 ## License
 

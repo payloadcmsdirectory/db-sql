@@ -1,139 +1,323 @@
+import type { TransactionOptions } from "@payloadcms/drizzle";
+import type {
+  MySqlDatabase,
+  MySqlPoolConnection,
+  MySqlTable,
+} from "drizzle-orm/mysql-core";
 import type { Pool } from "mysql2/promise";
-import type { DatabaseAdapter, Payload } from "payload";
+import type { DatabaseAdapter, DatabaseExtension, PushOptions } from "payload";
 
 /**
- * Options for the SQL adapter
+ * Simplified type definitions
+ */
+export type PayloadRequest = Record<string, any>;
+
+export type TypeWithID = {
+  id: string | number;
+  [key: string]: any;
+};
+
+export type Collection = {
+  slug: string;
+  fields?: Field[];
+  [key: string]: any;
+};
+
+export type CollectionConfig = {
+  slug: string;
+  fields: Field[];
+  [key: string]: any;
+};
+
+export type Field = {
+  name: string;
+  type: string;
+  required?: boolean;
+  unique?: boolean;
+  localized?: boolean;
+  index?: boolean;
+  defaultValue?: any;
+  hasMany?: boolean;
+  relationTo?: string | string[];
+  maxDepth?: number;
+  fields?: Field[];
+  [key: string]: any;
+};
+
+export type CreateArgs = {
+  collection: string;
+  data: Record<string, any>;
+  req?: PayloadRequest;
+  draft?: boolean;
+  [key: string]: any;
+};
+
+export type UpdateOneArgs = {
+  collection: string;
+  id: string | number;
+  data: Record<string, any>;
+  req?: PayloadRequest;
+  [key: string]: any;
+};
+
+export type DeleteOneArgs = {
+  collection: string;
+  id: string | number;
+  req?: PayloadRequest;
+  [key: string]: any;
+};
+
+export type FindArgs = {
+  collection: string;
+  limit?: number;
+  page?: number;
+  sort?: string | string[];
+  where?: Where;
+  depth?: number;
+  req?: PayloadRequest;
+  [key: string]: any;
+};
+
+export type FindOneArgs = {
+  collection: string;
+  where: Where;
+  depth?: number;
+  req?: PayloadRequest;
+  [key: string]: any;
+};
+
+export type Where = {
+  [key: string]: WhereField | Where;
+};
+
+export type WhereField = {
+  equals?: any;
+  not_equals?: any;
+  greater_than?: number | string;
+  greater_than_equal?: number | string;
+  less_than?: number | string;
+  less_than_equal?: number | string;
+  like?: string;
+  contains?: string;
+  in?: any[];
+  not_in?: any[];
+  exists?: boolean;
+  [key: string]: any;
+};
+
+export type PaginatedDocs<T extends TypeWithID = any> = {
+  docs: T[];
+  totalDocs: number;
+  limit: number;
+  totalPages: number;
+  page: number;
+  pagingCounter: number;
+  hasPrevPage: boolean;
+  hasNextPage: boolean;
+  prevPage: number | null;
+  nextPage: number | null;
+};
+
+/**
+ * SQL Adapter types
  */
 export interface SQLAdapterOptions {
-  /**
-   * MySQL/MariaDB host
-   */
-  host: string;
-
-  /**
-   * Database user
-   */
-  user: string;
-
-  /**
-   * Database password
-   */
-  password: string;
-
-  /**
-   * Database name
-   */
-  database: string;
-
-  /**
-   * Database port (default: 3306)
-   */
-  port?: number;
-
-  /**
-   * Table prefix (default: '')
-   */
-  tablePrefix?: string;
-
-  /**
-   * Enable verbose logging
-   */
-  debug?: boolean;
-
-  /**
-   * Drop all tables on initialization (development only)
-   */
-  dropDatabase?: boolean;
+  pool: {
+    host: string;
+    user: string;
+    password: string;
+    database: string;
+    port?: number;
+  };
+  prefix?: string;
 }
 
-/**
- * Extended DatabaseAdapter with SQL-specific functionality
- */
-export interface SQLAdapter extends DatabaseAdapter {
-  /**
-   * Reference to the Payload instance
-   */
-  payload: Payload;
-
-  /**
-   * Pool of MySQL connections
-   */
-  pool: Pool;
-
-  /**
-   * Table prefix for SQL tables
-   */
-  tablePrefix: string;
-
-  /**
-   * Enable debug mode
-   */
-  debug: boolean;
-
-  /**
-   * Connection method
-   */
+export interface SQLAdapter {
+  db: MySqlDatabase<any, any>;
+  collections: Record<string, Collection>;
   connect: () => Promise<void>;
-
-  /**
-   * Registry of Drizzle tables
-   */
-  tables: Record<string, any>;
-
-  /**
-   * Optional resolvers for async initialization
-   */
-  resolveInitializing?: () => void;
-  rejectInitializing?: (error: Error) => void;
+  disconnect: () => Promise<void>;
+  create: (args: CreateArgs) => Promise<any>;
+  createCollection: (args: CollectionConfig) => Promise<void>;
+  delete: (args: DeleteOneArgs) => Promise<void>;
+  find: <T extends TypeWithID = any>(
+    args: FindArgs,
+  ) => Promise<PaginatedDocs<T>>;
+  findOne: <T extends TypeWithID = any>(args: FindOneArgs) => Promise<T>;
+  findByID: <T extends TypeWithID = any>(args: {
+    collection: string;
+    id: string | number;
+    depth?: number;
+    req?: PayloadRequest;
+  }) => Promise<T>;
+  update: (args: UpdateOneArgs) => Promise<any>;
+  processRelationships?: <T extends TypeWithID = any>(
+    collection: string,
+    fields: Field[],
+    doc: T,
+    depth?: number,
+    req?: any,
+  ) => Promise<T>;
 }
 
 /**
- * Raw column definition for schema building
+ * MySQL specific adapter type
+ */
+export interface MySQLAdapter extends SQLAdapter {
+  client: Pool;
+  tables: Record<string, MySqlTable>;
+  tableNameMap: Map<string, string>;
+  tablePrefix: string;
+  transactionClient?: MySqlPoolConnection;
+}
+
+/**
+ * Raw schema definition types
  */
 export interface RawColumn {
   name: string;
   type: string;
-  primaryKey?: boolean;
-  notNull?: boolean;
-  autoIncrement?: boolean;
-  defaultNow?: boolean;
-  defaultRandom?: boolean;
-  default?: any;
+  required?: boolean;
+  unique?: boolean;
+  primary?: boolean;
+  defaultValue?: any;
   length?: number;
   options?: string[];
+  [key: string]: any;
 }
 
-/**
- * Raw index definition for schema building
- */
 export interface RawIndex {
-  name: string;
-  columns: string[];
+  fields: string[];
   unique?: boolean;
+  name?: string;
 }
 
-/**
- * Raw table definition for schema building
- */
 export interface RawTable {
   name: string;
-  columns: Record<string, RawColumn>;
+  columns: RawColumn[];
   indexes?: RawIndex[];
+  foreignKeys?: any[];
 }
 
-/**
- * Args for buildDrizzleTable
- */
 export interface BuildDrizzleTableArgs {
-  adapter: any;
+  adapter: SQLAdapter;
   tableName: string;
   tableConfig: RawTable;
 }
 
-/**
- * Args for setColumnID
- */
 export interface SetColumnIDArgs {
-  idType: "number" | "uuid" | string;
+  idType?: "number" | "uuid" | string;
   autoIncrement?: boolean;
+}
+
+export interface Args extends MySQLAdapterArgs {
+  autoIncrement?: boolean;
+  /**
+   * Skip schema validation on init
+   */
+  bypassSchemaValidation?: boolean;
+  /**
+   * Drizzle client for MySQL
+   */
+  client?: {
+    pool: {
+      host: string;
+      user: string;
+      password: string;
+      database: string;
+      port?: number;
+    };
+    /**
+     * Table prefix (defaults to '')
+     */
+    prefix?: string;
+  };
+  /**
+   * Location to write schema files
+   */
+  generateSchemaOutputFile?: string | false;
+  /**
+   * ID type for the database
+   */
+  idType?: "number" | "uuid";
+  /**
+   * Allow providing an ID on create
+   */
+  allowIDOnCreate?: boolean;
+  /**
+   * Location of Drizzle migrations. Defaults to `migrations` in the root of the project
+   */
+  migrationDir?: string;
+  /**
+   * Use DrizzleKit migrations in production. Default false.
+   */
+  prodMigrations?: boolean;
+  /**
+   * Options passed to push
+   */
+  push?: PushOptions;
+  /**
+   * Schema name
+   */
+  schemaName?: string;
+  /**
+   * Suffix for locales tables
+   */
+  localesSuffix?: string;
+  /**
+   * Suffix for versions tables
+   */
+  versionsSuffix?: string;
+  /**
+   * Suffix for relationship tables
+   */
+  relationshipsSuffix?: string;
+  /**
+   * Transaction options
+   */
+  transactionOptions?: TransactionOptions;
+  /**
+   * Logger
+   */
+  logger?: any;
+  /**
+   * Execute code after the schema is initialized
+   */
+  afterSchemaInit?: Array<
+    (args: { adapter: MySQLAdapter }) => Promise<void> | void
+  >;
+  /**
+   * Execute code before the schema is initialized
+   */
+  beforeSchemaInit?: Array<
+    (args: { adapter: MySQLAdapter }) => Promise<void> | void
+  >;
+}
+
+export interface MySQLAdapterArgs {}
+
+export interface MigrateUpArgs {
+  /**
+   * Run all migrations
+   */
+  all?: boolean;
+  /**
+   * Run migrations up to a specific migration
+   */
+  to?: string;
+}
+
+export interface MigrateDownArgs {
+  /**
+   * Drop all tables and rerun all migrations
+   */
+  drop?: boolean;
+  /**
+   * Run migrations down to a specific migration
+   */
+  to?: string;
+  /**
+   * Run all down migrations
+   */
+  all?: boolean;
 }

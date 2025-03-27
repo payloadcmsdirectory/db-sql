@@ -1,36 +1,42 @@
-import type { Config } from "payload";
-
-import type { SQLAdapterOptions } from "./types";
+import type {
+  Collection,
+  CollectionConfig,
+  CreateArgs,
+  DeleteOneArgs,
+  Field,
+  FindArgs,
+  FindOneArgs,
+  MySQLAdapter,
+  PaginatedDocs,
+  SQLAdapterOptions,
+  TypeWithID,
+  UpdateOneArgs,
+  Where,
+} from "./types";
 import { sqlAdapter } from "./adapter";
 
-export * from "./types";
+export * from "./drizzle-proxy";
+
+export * from "./schema";
+
+export * from "./relationships";
+
+export default sqlAdapter;
+
 export { sqlAdapter };
 
-/**
- * SQL Database Adapter for PayloadCMS
- *
- * Usage:
- * ```typescript
- * import { sqlAdapter } from '@launchthat.apps/payload-sql';
- *
- * export default buildConfig({
- *   db: sqlAdapter({
- *     host: 'localhost',
- *     user: 'root',
- *     password: 'password',
- *     database: 'payload',
- *     tablePrefix: 'pl_',
- *   }),
- * });
- * ```
- */
-export const pluginSQLDatabase =
-  (options: SQLAdapterOptions) =>
-  (incomingConfig: Config): Config => {
-    return {
-      ...incomingConfig,
-      db: sqlAdapter(options),
-    };
-  };
-
-export default pluginSQLDatabase;
+export type {
+  SQLAdapterOptions,
+  MySQLAdapter,
+  Collection,
+  Field,
+  CreateArgs,
+  UpdateOneArgs,
+  DeleteOneArgs,
+  FindArgs,
+  FindOneArgs,
+  PaginatedDocs,
+  TypeWithID,
+  Where,
+  CollectionConfig,
+};

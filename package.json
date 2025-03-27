@@ -1,0 +1,45 @@
+{
+  "name": "@payloadcmsdirectory/db-sql",
+  "version": "0.0.1",
+  "description": "SQL Database Adapter for PayloadCMS",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "author": "PayloadCMS",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/payloadcmsdirectory/db-sql.git"
+  },
+  "keywords": [
+    "payload",
+    "payloadcms",
+    "sql",
+    "mysql",
+    "mariadb",
+    "database",
+    "adapter"
+  ],
+  "peerDependencies": {
+    "payload": "^2.0.0"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.30.0",
+    "mysql2": "^3.6.1"
+  },
+  "devDependencies": {
+    "payload": "^2.0.0",
+    "rimraf": "^5.0.1",
+    "typescript": "^5.0.0"
+  }
+}

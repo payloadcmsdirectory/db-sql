@@ -27,7 +27,7 @@ async function testSQLAdapter() {
       // Drop existing tables if they exist
       console.log("Dropping any existing tables...");
       await pool.query(
-        `DROP TABLE IF EXISTS \`${prefix}posts_categories_rels\``
+        `DROP TABLE IF EXISTS \`${prefix}posts_categories_rels\``,
       );
       await pool.query(`DROP TABLE IF EXISTS \`${prefix}posts\``);
       await pool.query(`DROP TABLE IF EXISTS \`${prefix}users\``);
@@ -36,7 +36,7 @@ async function testSQLAdapter() {
     } catch (err) {
       console.log(
         "Warning: Cleanup error (may be normal if tables don't exist yet):",
-        err.message
+        err.message,
       );
     }
 
@@ -174,7 +174,7 @@ async function testSQLAdapter() {
     });
     console.log(
       "✅ Found post with relationships:",
-      JSON.stringify(foundPost, null, 2)
+      JSON.stringify(foundPost, null, 2),
     );
 
     // Test updating documents with relationships
@@ -228,7 +228,7 @@ async function testSQLAdapter() {
     } catch (err) {
       console.log(
         "✅ Verified post was deleted (error expected):",
-        err.message
+        err.message,
       );
     }
 

@@ -25,7 +25,7 @@ export async function startDatabase(): Promise<void> {
     while (!isReady && attempts < maxAttempts) {
       try {
         const { stdout: healthOutput } = await execAsync(
-          "docker-compose exec -T mysql mysqladmin ping -h localhost -u root -prootpassword"
+          "docker-compose exec -T mysql mysqladmin ping -h localhost -u root -prootpassword",
         );
         if (healthOutput.includes("mysqld is alive")) {
           isReady = true;
@@ -34,7 +34,7 @@ export async function startDatabase(): Promise<void> {
       } catch (error) {
         attempts++;
         console.log(
-          `Waiting for database to be ready... (${attempts}/${maxAttempts})`
+          `Waiting for database to be ready... (${attempts}/${maxAttempts})`,
         );
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }

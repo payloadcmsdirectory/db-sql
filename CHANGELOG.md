@@ -1,6 +1,6 @@
 # PayloadCMS SQL Database Adapter Changelog
 
-## 0.0.03 (2023-10-15)
+## 0.0.02 (2023-10-15)
 
 ### Added
 
@@ -12,7 +12,7 @@
 - Type definitions for adapter interfaces
 - Improved error handling during connection failures
 
-## 0.0.02 (2023-10-10)
+## 0.0.01 (2023-10-10)
 
 ### Added
 

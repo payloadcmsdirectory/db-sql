@@ -1,4 +1,5 @@
 import { buildConfig } from "payload/config";
+
 import { sqlAdapter } from "../src";
 
 /**

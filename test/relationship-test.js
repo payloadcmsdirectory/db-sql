@@ -84,7 +84,7 @@ async function testRelationships() {
       `
       INSERT INTO \`${prefix}users\` (email, name) VALUES (?, ?)
     `,
-      ["test@example.com", "Test User"]
+      ["test@example.com", "Test User"],
     );
 
     const userId = userResult.insertId;
@@ -96,14 +96,14 @@ async function testRelationships() {
       `
       INSERT INTO \`${prefix}categories\` (name) VALUES (?)
     `,
-      ["Technology"]
+      ["Technology"],
     );
 
     const [cat2Result] = await pool.query(
       `
       INSERT INTO \`${prefix}categories\` (name) VALUES (?)
     `,
-      ["Programming"]
+      ["Programming"],
     );
 
     const categoryIds = [cat1Result.insertId, cat2Result.insertId];
@@ -115,7 +115,7 @@ async function testRelationships() {
       `
       INSERT INTO \`${prefix}posts\` (title, content, publishDate, author) VALUES (?, ?, ?, ?)
     `,
-      ["Test Post", "This is a test post content", new Date(), userId]
+      ["Test Post", "This is a test post content", new Date(), userId],
     );
 
     const postId = postResult.insertId;
@@ -128,7 +128,7 @@ async function testRelationships() {
         `
         INSERT INTO \`${prefix}posts_categories_rels\` (post_id, category_id) VALUES (?, ?)
       `,
-        [postId, categoryId]
+        [postId, categoryId],
       );
     }
     console.log("✅ Created relationships");
@@ -144,7 +144,7 @@ async function testRelationships() {
       LEFT JOIN \`${prefix}users\` u ON p.author = u.id
       WHERE p.id = ?
     `,
-      [postId]
+      [postId],
     );
 
     // Query 2: Get categories for post
@@ -155,7 +155,7 @@ async function testRelationships() {
       JOIN \`${prefix}posts_categories_rels\` r ON c.id = r.category_id
       WHERE r.post_id = ?
     `,
-      [postId]
+      [postId],
     );
 
     // Query 3: Count categories per post

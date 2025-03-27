@@ -1,24 +1,36 @@
-import { sql } from "drizzle-orm";
+import { MySQLAdapter } from "./types";
+import { sql } from "./drizzle-proxy";
 
-import type { MySQLAdapter } from "./types.js";
-
+/**
+ * Count the number of distinct values for a specific field in a collection.
+ *
+ * @param this MySQLAdapter instance
+ * @param collection Collection name
+ * @param field Field to count
+ * @returns Count of distinct values
+ */
 export async function countDistinct(
   this: MySQLAdapter,
-  tableName: string,
-  columnName: string,
+  collection: string,
+  field: string,
 ): Promise<number> {
   try {
-    const result = await this.drizzle.execute(
-      sql`SELECT COUNT(DISTINCT ${sql.raw(columnName)}) as count FROM ${sql.raw(tableName)}`,
-    );
+    const table = this.tables[collection];
+    if (!table) return 0;
 
-    if (Array.isArray(result) && result.length > 0) {
-      return Number(result[0].count);
-    }
+    const result = await this.db
+      .select({
+        count: sql<number>`COUNT(DISTINCT ${sql.identifier(field)})`,
+      })
+      .from(table);
 
-    return 0;
+    return Number(result[0]?.count) || 0;
   } catch (error) {
-    this.payload.logger.error(`Error in countDistinct: ${error.message}`);
-    return 0;
+    if (this.payload?.logger) {
+      this.payload.logger.error(
+        `Error in countDistinct: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    throw error;
   }
 }

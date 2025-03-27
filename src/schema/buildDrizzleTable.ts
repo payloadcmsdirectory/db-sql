@@ -1,3 +1,4 @@
+import type { BuildDrizzleTableArgs, MySQLAdapter } from "../types";
 import {
   index,
   mysqlTable,
@@ -5,7 +6,6 @@ import {
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
 
-import type { BuildDrizzleTableArgs } from "../types";
 import { sql } from "../drizzle-proxy";
 
 /**
@@ -17,7 +17,7 @@ export function buildDrizzleTable({
   tableConfig,
 }: BuildDrizzleTableArgs) {
   const { columns, indexes = [] } = tableConfig;
-  const drizzleColumns = {};
+  const drizzleColumns: Record<string, any> = {};
 
   // Process columns
   for (const column of columns) {
@@ -34,18 +34,16 @@ export function buildDrizzleTable({
     if (!name) continue;
 
     // Define column using the adapter's columnToCodeConverter
-    let drizzleColumn = adapter.generateSchema.columnToCodeConverter(
-      name,
-      type,
-      {
-        primaryKey: primary,
-        notNull: required,
-        unique,
-        default: defaultValue !== undefined ? defaultValue : undefined,
-        length: column.length,
-        options: column.options,
-      },
-    );
+    let drizzleColumn = (
+      adapter as MySQLAdapter
+    ).generateSchema?.columnToCodeConverter(name, type, {
+      primaryKey: primary,
+      notNull: required,
+      unique,
+      default: defaultValue !== undefined ? defaultValue : undefined,
+      length: column.length,
+      options: column.options,
+    });
 
     // Add the column to the columns object
     drizzleColumns[name] = drizzleColumn;
@@ -64,32 +62,49 @@ export function buildDrizzleTable({
       if (fields.length === 1) {
         // Single column index
         if (unique) {
-          uniqueIndex(
-            name || `idx_${tableName}_${fields[0]}`,
+          uniqueIndex(name || `idx_${tableName}_${fields[0]}`).on(
             table[fields[0]],
           );
         } else {
-          index(name || `idx_${tableName}_${fields[0]}`, table[fields[0]]);
+          index(name || `idx_${tableName}_${fields[0]}`).on(table[fields[0]]);
         }
       } else {
         // Multi-column index
+        const indexColumns = fields.map((field) => table[field]);
+
         if (unique) {
-          uniqueIndex(
-            name || `idx_${tableName}_${fields.join("_")}`,
-            fields.map((field) => table[field]),
-          );
+          // Use first column and additional columns if available
+          if (indexColumns.length >= 2) {
+            uniqueIndex(name || `idx_${tableName}_${fields.join("_")}`).on(
+              indexColumns[0],
+              indexColumns[1],
+              ...indexColumns.slice(2),
+            );
+          } else if (indexColumns.length === 1) {
+            uniqueIndex(name || `idx_${tableName}_${fields.join("_")}`).on(
+              indexColumns[0],
+            );
+          }
         } else {
-          index(
-            name || `idx_${tableName}_${fields.join("_")}`,
-            fields.map((field) => table[field]),
-          );
+          // Use first column and additional columns if available
+          if (indexColumns.length >= 2) {
+            index(name || `idx_${tableName}_${fields.join("_")}`).on(
+              indexColumns[0],
+              indexColumns[1],
+              ...indexColumns.slice(2),
+            );
+          } else if (indexColumns.length === 1) {
+            index(name || `idx_${tableName}_${fields.join("_")}`).on(
+              indexColumns[0],
+            );
+          }
         }
       }
     }
   }
 
   // Register the table in the adapter
-  adapter.tables[tableName] = table;
+  (adapter as MySQLAdapter).tables[tableName] = table;
 
   return table;
 }

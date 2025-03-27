@@ -3,15 +3,16 @@
  * This allows us to potentially swap out the underlying implementation
  */
 
-import type { MySqlPool, MySqlPoolConnection } from "drizzle-orm/mysql-core";
+import type { Pool, PoolConnection } from "mysql2/promise";
+
 import { drizzle as drizzleORM } from "drizzle-orm/mysql2";
 
 /**
- * Initialize Drizzle ORM with a MySQL connection pool
+ * Create Drizzle ORM instance with MySQL connection
  */
-export function drizzle(client: MySqlPool | MySqlPoolConnection) {
-  return drizzleORM(client);
-}
+export const drizzle = (pool: Pool) => {
+  return drizzleORM(pool);
+};
 
 /**
  * MySQL timestamp placeholder for NOW()

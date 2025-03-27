@@ -9,21 +9,25 @@ A SQL database adapter for PayloadCMS, with support for MySQL.
 - ✅ MySQL database support
 - ✅ Automatic table and schema management
 - ✅ Relationship support with junction tables
+- ✅ Transaction support
+- ✅ TypeScript compatibility
+- ✅ Basic query filtering
 - ⬜ Migration support
-- ⬜ Advanced query filtering
 - ⬜ Sorting support
 - ⬜ Full text search
+- ⬜ Localization support
+- ⬜ Versioning
 
 ## Installation
 
 ```bash
-npm install @payload-plugins/sql
+npm install @payloadcmsdirectory/db-sql
 ```
 
 ## Usage
 
 ```typescript
-import { sqlAdapter } from "@payload-plugins/sql";
+import { sqlAdapter } from "@payloadcmsdirectory/db-sql";
 import { buildConfig } from "payload/config";
 
 const config = buildConfig({
@@ -83,9 +87,25 @@ The adapter supports the following PayloadCMS field types:
 ## Limitations
 
 - Currently only supports MySQL databases
-- Some advanced PayloadCMS features like versions are not yet supported
+- Some advanced PayloadCMS features like versions and localization are not yet supported
 
-## Testing
+## Development
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/payloadcmsdirectory/db-sql.git
+cd payload-sql
+npm install
+```
+
+Build the project:
+
+```bash
+npm run build
+```
+
+Run tests:
 
 ```bash
 npm run test

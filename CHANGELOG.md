@@ -1,6 +1,22 @@
 # PayloadCMS SQL Database Adapter Changelog
 
-## 0.0.02 (2023-10-15)
+## 0.0.4 (2025-03-27)
+
+### Added
+
+- Improved TypeScript compatibility throughout the codebase
+- Updated requireDrizzleKit implementation using ESM dynamic imports
+- Added proper error handling with null checks in all adapter methods
+- Better type safety for SQL query operations
+
+### Fixed
+
+- Type errors in the MySQL adapter implementation
+- Build process now completes successfully without TypeScript errors
+- Corrected indexing implementation for MySQL tables
+- Fixed transaction support in execute method
+
+## 0.0.03 (2025-03-27)
 
 ### Added
 
@@ -12,7 +28,7 @@
 - Type definitions for adapter interfaces
 - Improved error handling during connection failures
 
-## 0.0.01 (2023-10-10)
+## 0.0.02 (2025-03-27)
 
 ### Added
 

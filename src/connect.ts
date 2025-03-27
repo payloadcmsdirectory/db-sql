@@ -1,7 +1,6 @@
-import type mysql from "mysql2/promise";
+import type { MySQLAdapter } from "./types";
 import { drizzle } from "drizzle-orm/mysql2";
-
-import type { MySQLAdapter } from "./types.js";
+import type mysql from "mysql2/promise";
 
 // Initialize MySQL connection and Drizzle ORM
 export async function connect(this: MySQLAdapter): Promise<void> {
@@ -15,6 +14,10 @@ export async function connect(this: MySQLAdapter): Promise<void> {
     const { createPool } = await import("mysql2/promise");
     const config = this.clientConfig;
 
+    if (!config || !config.pool) {
+      throw new Error("MySQL connection configuration is missing");
+    }
+
     // Create the MySQL connection pool
     const pool = createPool({
       host: config.pool.host,
@@ -27,9 +30,12 @@ export async function connect(this: MySQLAdapter): Promise<void> {
       connectionLimit: 10,
       queueLimit: 0,
       // Better JSON handling
-      typeCast: function (field, next) {
+      typeCast: function (field: any, next: () => any) {
         if (field.type === "JSON") {
-          return JSON.parse(field.string());
+          const value = field.string();
+          if (value !== null) {
+            return JSON.parse(value);
+          }
         }
         return next();
       },
@@ -42,16 +48,26 @@ export async function connect(this: MySQLAdapter): Promise<void> {
     this.client = pool as mysql.Pool;
     this.drizzle = drizzle(pool);
 
-    this.payload.logger.info(`Connected to MySQL: ${config.pool.database}`);
+    if (this.payload?.logger) {
+      this.payload.logger.info(`Connected to MySQL: ${config.pool.database}`);
+    }
 
     if (this.resolveInitializing) {
       this.resolveInitializing();
     }
   } catch (error) {
-    this.payload.logger.error(`Failed to connect to MySQL: ${error.message}`);
-    if (this.rejectInitializing) {
-      this.rejectInitializing(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (this.payload?.logger) {
+      this.payload.logger.error(`Failed to connect to MySQL: ${errorMessage}`);
     }
+
+    if (this.rejectInitializing) {
+      this.rejectInitializing(
+        error instanceof Error ? error : new Error(errorMessage),
+      );
+    }
+
     throw error;
   }
 }

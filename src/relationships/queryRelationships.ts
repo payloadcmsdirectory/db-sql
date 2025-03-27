@@ -1,7 +1,8 @@
-import type { MySqlTable } from "drizzle-orm/mysql-core";
+import type { Field, MySQLAdapter, TypeWithID } from "../types";
+import type { OkPacket, ResultSetHeader, RowDataPacket } from "mysql2";
 import { eq, inArray, sql } from "drizzle-orm";
 
-import type { Field, MySQLAdapter, TypeWithID } from "../types";
+import type { MySqlTable } from "drizzle-orm/mysql-core";
 
 /**
  * Relationship field type definition
@@ -19,6 +20,35 @@ interface RelationshipField {
 interface Relation {
   childId: number;
   order: number;
+}
+
+/**
+ * MySQL row result with ID
+ */
+interface RowWithID extends RowDataPacket {
+  id: string | number;
+  [key: string]: any;
+}
+
+/**
+ * Converts a MySQL result to TypeWithID
+ */
+function toTypeWithID(
+  row: RowDataPacket | OkPacket | ResultSetHeader | RowDataPacket[],
+): TypeWithID | null {
+  if (!row) return null;
+
+  // Handle array result - take first item
+  if (Array.isArray(row)) {
+    return row.length > 0 ? toTypeWithID(row[0]) : null;
+  }
+
+  // Check if row has id
+  if ("id" in row) {
+    return row as TypeWithID;
+  }
+
+  return null;
 }
 
 /**
@@ -60,20 +90,23 @@ export async function fetchRelations<T extends TypeWithID = any>(
     const tableName = adapter.tableNameMap.get(relationTo) || relationTo;
 
     // Query for related documents
-    const [rows] = await adapter.client.query(
+    const [rows] = (await adapter.client.query(
       `SELECT * FROM ${tableName} WHERE id IN (${placeholders})`,
       ids,
-    );
+    )) as [RowDataPacket[], any];
 
     // Format and process each document
     const relatedDocs = Array.isArray(rows) ? rows : [];
 
     if (field.hasMany) {
       // Process each document and maintain order
-      const docsById: Record<string | number, any> = {};
-      for (const relatedDoc of relatedDocs) {
+      const docsById: Record<string | number, TypeWithID> = {};
+
+      for (const relatedDoc of relatedDocs as RowWithID[]) {
+        if (!("id" in relatedDoc)) continue;
+
         // Process nested relationships if needed
-        let processedDoc = relatedDoc;
+        let processedDoc: TypeWithID = relatedDoc as TypeWithID;
         if (depth > 0) {
           processedDoc = await processDocumentRelationships(
             adapter,
@@ -88,11 +121,11 @@ export async function fetchRelations<T extends TypeWithID = any>(
       }
 
       // Maintain the original order
-      return ids.map((id) => docsById[id]).filter(Boolean);
+      return ids.map((id: string | number) => docsById[id]).filter(Boolean);
     } else {
       // Single relation - return the first matching document
-      const relatedDoc = relatedDocs[0];
-      if (!relatedDoc) return null;
+      const relatedDoc = relatedDocs[0] as RowWithID;
+      if (!relatedDoc || !("id" in relatedDoc)) return null;
 
       // Process nested relationships if needed
       if (depth > 0) {
@@ -100,7 +133,7 @@ export async function fetchRelations<T extends TypeWithID = any>(
           adapter,
           relationTo,
           adapter.collections[relationTo]?.fields || [],
-          relatedDoc,
+          relatedDoc as TypeWithID,
           depth,
           currentDepth + 1,
         );
@@ -128,7 +161,7 @@ export async function processDocumentRelationships<T extends TypeWithID = any>(
   if (!doc) return doc;
 
   // Clone document to avoid modifying the original
-  const result = { ...doc };
+  const result = { ...doc } as Record<string, any>;
 
   // Find and process all relationship fields
   const relationshipFields = fields.filter(
@@ -137,18 +170,21 @@ export async function processDocumentRelationships<T extends TypeWithID = any>(
 
   // Process each relationship field
   for (const field of relationshipFields) {
-    if (!field.name || !result[field.name]) continue;
+    if (!field.name || !doc[field.name]) continue;
 
     // Fetch related documents
-    result[field.name] = await fetchRelations(
+    const relatedData = await fetchRelations(
       adapter,
       collection,
       field,
-      result,
+      doc,
       depth,
       currentDepth,
     );
+
+    // Set the related data on the result object
+    result[field.name] = relatedData;
   }
 
-  return result;
+  return result as T;
 }

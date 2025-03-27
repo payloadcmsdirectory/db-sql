@@ -1,8 +1,3 @@
-import type {
-  Column,
-  ColumnBuilder,
-  ColumnBuilderCallback,
-} from "@payloadcms/drizzle";
 import {
   binary,
   boolean,
@@ -17,13 +12,15 @@ import {
   varchar,
 } from "drizzle-orm/mysql-core";
 
+import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
+
 // This function converts database column types to Drizzle ORM code
-export function columnToCodeConverter<T extends Column>(
+export function columnToCodeConverter(
   name: string,
   type: string,
   meta: any = {},
-): ColumnBuilder<ColumnBuilderCallback<T>> {
-  let column: ColumnBuilder<ColumnBuilderCallback<any>>;
+): any {
+  let column: any;
 
   switch (type.toLowerCase()) {
     case "binary":

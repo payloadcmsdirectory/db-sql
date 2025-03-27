@@ -1,23 +1,32 @@
-import { sql } from "drizzle-orm";
+import { MySQLAdapter } from "./types";
+import { sql } from "./drizzle-proxy";
 
-import type { MySQLAdapter } from "./types.js";
-
+/**
+ * Delete records from a collection based on a where condition.
+ *
+ * @param this MySQLAdapter instance
+ * @param collection Collection name
+ * @param whereSQL SQL where clause
+ * @returns Number of deleted records
+ */
 export async function deleteWhere(
   this: MySQLAdapter,
-  tableName: string,
-  whereStatement: string,
-  values: any[] = [],
+  collection: string,
+  whereSQL: string,
 ): Promise<number> {
   try {
-    const result = await this.drizzle.execute(
-      sql`DELETE FROM ${sql.raw(tableName)} WHERE ${sql.raw(whereStatement)}`,
-      values,
-    );
+    const table = this.tables[collection];
+    if (!table) return 0;
 
-    // Return number of affected rows
-    return result.rowsAffected;
+    const result = await this.db.delete(table).where(sql.raw(whereSQL));
+
+    return Number(result.rowsAffected) || 0;
   } catch (error) {
-    this.payload.logger.error(`Error in deleteWhere: ${error.message}`);
+    if (this.payload?.logger) {
+      this.payload.logger.error(
+        `Error in deleteWhere: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     throw error;
   }
 }

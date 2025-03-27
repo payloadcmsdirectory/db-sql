@@ -1,24 +1,32 @@
-import { sql } from "drizzle-orm";
+import { MySQLAdapter } from "./types";
 
-import type { MySQLAdapter } from "./types.js";
-
+/**
+ * Execute a raw SQL query
+ *
+ * @param this MySQLAdapter instance
+ * @param query SQL query to execute
+ * @param values Query parameters
+ * @returns Query result
+ */
 export async function execute(
   this: MySQLAdapter,
-  statement: string,
+  query: string,
   values: any[] = [],
 ): Promise<any> {
   try {
-    // Use the transaction client if available, otherwise use the regular client
-    const client = this.transactionClient || this.client;
-
-    if (!client) {
-      throw new Error("No database client available");
+    if (!this.client) {
+      throw new Error("Database client not initialized");
     }
 
-    const [result] = await client.query(statement, values);
+    // Use the client's query method directly for raw SQL
+    const result = await this.client.query(query, values);
     return result;
   } catch (error) {
-    this.payload.logger.error(`Error executing SQL: ${error.message}`);
+    if (this.payload?.logger) {
+      this.payload.logger.error(
+        `Error executing SQL: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     throw error;
   }
 }

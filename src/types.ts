@@ -165,6 +165,65 @@ export interface MySQLAdapter extends SQLAdapter {
   tableNameMap: Map<string, string>;
   tablePrefix: string;
   transactionClient?: PoolConnection;
+
+  /**
+   * Drizzle ORM instance
+   */
+  drizzle?: any;
+
+  /**
+   * Client connection configuration
+   */
+  clientConfig?: {
+    pool: {
+      host: string;
+      user: string;
+      password: string;
+      database: string;
+      port?: number;
+    };
+  };
+
+  /**
+   * Payload instance
+   */
+  payload?: {
+    logger: {
+      info: (message: string) => void;
+      error: (message: string, error?: Error) => void;
+    };
+  };
+
+  /**
+   * Resolve function for initialization promise
+   */
+  resolveInitializing?: () => void;
+
+  /**
+   * Reject function for initialization promise
+   */
+  rejectInitializing?: (error: Error) => void;
+
+  /**
+   * Schema generation utilities
+   */
+  generateSchema?: {
+    columnToCodeConverter: any;
+  };
+
+  /**
+   * Hooks to run before schema initialization
+   */
+  beforeSchemaInit?: Array<
+    (args: { adapter: MySQLAdapter }) => Promise<void> | void
+  >;
+
+  /**
+   * Hooks to run after schema initialization
+   */
+  afterSchemaInit?: Array<
+    (args: { adapter: MySQLAdapter }) => Promise<void> | void
+  >;
 }
 
 /**

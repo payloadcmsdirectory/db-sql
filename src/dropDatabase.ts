@@ -1,44 +1,59 @@
-import { sql } from "drizzle-orm";
+import { MySQLAdapter } from "./types";
+import { sql } from "./drizzle-proxy";
 
-import type { MySQLAdapter } from "./types.js";
-
+/**
+ * Drop all tables in the database
+ *
+ * @param this MySQLAdapter instance
+ * @returns Promise resolving when all tables are dropped
+ */
 export async function dropDatabase(this: MySQLAdapter): Promise<void> {
+  // Get list of all tables
+  let tableNames: string[] = [];
+
   try {
-    // Get all tables in the database except system tables
-    const tablesResult = await this.client.query(`
+    // Disable foreign key checks to prevent constraint errors
+    await this.db.execute(sql`SET FOREIGN_KEY_CHECKS = 0;`);
+
+    // Get all tables
+    const result = await this.db.execute(sql`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = DATABASE()
-      AND table_type = 'BASE TABLE'
     `);
 
-    if (!Array.isArray(tablesResult) || tablesResult.length < 1) {
-      return;
+    if (Array.isArray(result) && result.length > 0) {
+      // @ts-ignore - Result structure is an array of objects with table_name
+      tableNames = result.map((row) => row.table_name);
     }
-
-    const tables = tablesResult[0] as Array<{ table_name: string }>;
-
-    if (tables.length === 0) {
-      return;
-    }
-
-    // Disable foreign key checks to allow dropping tables with dependencies
-    await this.client.query("SET FOREIGN_KEY_CHECKS = 0");
 
     // Drop each table
-    for (const table of tables) {
-      const tableName = table.table_name;
-      await this.drizzle.execute(
-        sql`DROP TABLE IF EXISTS ${sql.raw(tableName)}`,
+    for (const tableName of tableNames) {
+      await this.db.execute(
+        sql`DROP TABLE IF EXISTS ${sql.identifier(tableName)}`,
       );
     }
 
     // Re-enable foreign key checks
-    await this.client.query("SET FOREIGN_KEY_CHECKS = 1");
+    await this.db.execute(sql`SET FOREIGN_KEY_CHECKS = 1;`);
 
-    this.payload.logger.info("Database tables dropped successfully");
+    if (this.payload?.logger) {
+      this.payload.logger.info("Database tables dropped successfully");
+    }
   } catch (error) {
-    this.payload.logger.error(`Error dropping database: ${error.message}`);
+    if (this.payload?.logger) {
+      this.payload.logger.error(
+        `Error dropping database: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    // Re-enable foreign key checks even if there was an error
+    try {
+      await this.db.execute(sql`SET FOREIGN_KEY_CHECKS = 1;`);
+    } catch (e) {
+      // Ignore error when re-enabling foreign key checks
+    }
+
     throw error;
   }
 }

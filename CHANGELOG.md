@@ -1,5 +1,17 @@
 # PayloadCMS SQL Database Adapter Changelog
 
+## 0.0.53 - 2025-04-01
+
+### Added
+
+- Integration test suite with full PayloadCMS API testing
+- Script for running integration tests
+
+### Fixed
+
+- Updated README with comprehensive testing instructions
+- Improved documentation for both mock adapter and integration testing approaches
+
 ## 0.0.52 - 2025-03-27
 
 ### Changed

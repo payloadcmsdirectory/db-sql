@@ -1,6 +1,7 @@
 import { fileURLToPath } from "url";
 import type { Operators } from "@payloadcms/drizzle";
 import type { DatabaseAdapterObj, Payload } from "payload";
+import {  } from 'payload/test';
 import {
   beginTransaction,
   buildCreateMigration,

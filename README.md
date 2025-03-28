@@ -4,7 +4,7 @@ An SQL database adapter for [PayloadCMS](https://payloadcms.com).
 
 > **Note:** This package is currently in alpha development and should not be used in production.
 
-## Current Version: 0.0.52
+## Current Version: 0.0.53
 
 ### What's New
 
@@ -12,6 +12,10 @@ An SQL database adapter for [PayloadCMS](https://payloadcms.com).
 - Fixed bug in MySQL adapter initialization
 - Added improvements to the connection handling
 - Updated documentation
+- Added integration test suite with full PayloadCMS API testing
+- Improved documentation for testing approaches
+- Added comprehensive test coverage for adapter functionality
+- Updated testing scripts with dedicated integration test command
 
 ## Installation
 
@@ -73,11 +77,31 @@ Current implementation features:
 
 All standard PayloadCMS field types are supported.
 
-## Testing MySQL Connection
+## Testing
+
+The adapter includes comprehensive Jest-based test suites to verify functionality:
 
 ```bash
-pnpm test:ts
+# Run all tests
+pnpm test
+
+# Run individual test suites
+pnpm test:connection   # Basic connection functionality
+pnpm test:relationship # Relationship management
+pnpm test:sorting      # Sorting capabilities
+pnpm test:fulltext     # Full-text search functionality
+pnpm test:adapter      # Complete adapter functionality
 ```
+
+To run the tests, you need a MySQL server with the following configuration:
+
+- Host: localhost
+- Port: 3306
+- User: root
+- Password: rootpassword
+- Database: payload_test
+
+You can modify these settings in the test files if needed.
 
 ## Limitations
 

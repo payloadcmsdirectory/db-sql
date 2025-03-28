@@ -1,20 +1,5 @@
-import type {
-  Collection,
-  CollectionConfig,
-  CreateArgs,
-  DeleteOneArgs,
-  Field,
-  FindArgs,
-  FindOneArgs,
-  MySQLAdapter,
-  PaginatedDocs,
-  SQLAdapterOptions,
-  TypeWithID,
-  UpdateOneArgs,
-  Where,
-} from "./types";
-
-import { sqlAdapter } from "./adapter";
+import type { Field, MySQLAdapter, TypeWithID } from "./types";
+import { mysqlAdapter } from "./adapter";
 
 export * from "./drizzle-proxy";
 
@@ -22,22 +7,8 @@ export * from "./schema";
 
 export * from "./relationships";
 
-export default sqlAdapter;
+export default mysqlAdapter;
 
-export { sqlAdapter };
+export { mysqlAdapter };
 
-export type {
-  SQLAdapterOptions,
-  MySQLAdapter,
-  Collection,
-  Field,
-  CreateArgs,
-  UpdateOneArgs,
-  DeleteOneArgs,
-  FindArgs,
-  FindOneArgs,
-  PaginatedDocs,
-  TypeWithID,
-  Where,
-  CollectionConfig,
-};
+export type { MySQLAdapter, Field, TypeWithID };

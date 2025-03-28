@@ -1,52 +1,39 @@
-import { MySQLAdapter } from "./types";
+import { sql } from "drizzle-orm";
 
-/**
- * Insert a record into a collection
- *
- * @param this MySQLAdapter instance
- * @param collection Collection name
- * @param data Data to insert
- * @returns Inserted record with ID
- */
-export async function insert(
+import type { Insert, MySQLAdapter } from "./types.js";
+
+export const insert: Insert = async function (
+  // Here 'this' is not a parameter. See:
+  // https://www.typescriptlang.org/docs/handbook/2/classes.html#this-parameters
   this: MySQLAdapter,
-  collection: string,
-  data: Record<string, any>,
-): Promise<Record<string, any>> {
-  try {
-    // Get the table for this collection
-    const table = this.tables[collection];
-    if (!table) {
-      throw new Error(`Table not found for collection: ${collection}`);
-    }
+  { db, onConflictDoUpdate, tableName, values },
+): Promise<Record<string, unknown>[]> {
+  const table = this.tables[tableName];
 
-    // Prepare data for insertion - remove any fields that don't exist in the table
-    const insertData: Record<string, any> = {};
-
-    // Filter data to match table columns
-    Object.keys(data).forEach((key) => {
-      if (key in table) {
-        insertData[key] = data[key];
-      }
-    });
-
-    // Insert the data and get the ID
-    const result = await this.db
+  if (onConflictDoUpdate) {
+    await db
       .insert(table)
-      .values(insertData)
-      .$returningId();
-
-    // Return the record with ID
-    return {
-      ...insertData,
-      id: result,
-    };
-  } catch (error) {
-    if (this.payload?.logger) {
-      this.payload.logger.error(
-        `Error in insert: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    throw error;
+      .values(values)
+      .onDuplicateKeyUpdate(onConflictDoUpdate);
+  } else {
+    await db.insert(table).values(values);
   }
-}
+
+  // Since MySQL doesn't support RETURNING clause like PostgreSQL,
+  // we need to get the inserted IDs and fetch the records manually
+  const insertedIds = Array.isArray(values)
+    ? values.map((v) => v.id).filter(Boolean)
+    : values.id
+      ? [values.id]
+      : [];
+
+  if (insertedIds.length) {
+    return await db
+      .select()
+      .from(table)
+      .where(sql`id IN (${insertedIds.join(",")})`);
+  }
+
+  // If we can't get IDs, return empty array or original values as fallback
+  return Array.isArray(values) ? values : [values];
+};

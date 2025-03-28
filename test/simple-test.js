@@ -1,40 +1,36 @@
-// A simple test for the MySQL adapter
-const { sqlAdapter } = require("../dist/index");
+// A simple test to check MySQL connectivity
+import mysql from "mysql2/promise";
 
 async function runTest() {
-  console.log("MySQL test started");
+  console.log("MySQL connection test started");
 
-  // Create the adapter with minimal configuration
-  const adapter = sqlAdapter({
-    pool: {
+  let connection;
+  try {
+    // Create a connection pool
+    const pool = await mysql.createPool({
       host: "localhost",
       user: "root",
       password: "rootpassword",
       database: "payload_test",
       port: 3306,
-    },
-    prefix: "test_",
-  });
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+    });
 
-  try {
-    // Test connection
-    console.log("Connecting to MySQL...");
-    await adapter.connect();
-    console.log("Successfully connected to MySQL");
+    console.log("Successfully created MySQL connection pool");
 
-    // List tables
-    const [rows] = await adapter.client.query("SHOW TABLES");
+    // Test the connection
+    console.log("Testing query execution...");
+    const [rows] = await pool.query("SHOW TABLES");
     console.log("Tables:", rows);
 
+    // Close pool
+    await pool.end();
+    console.log("Connection pool closed");
     console.log("Test completed successfully");
   } catch (error) {
     console.error("Test failed:", error);
-  } finally {
-    // Disconnect
-    if (adapter.client) {
-      await adapter.disconnect();
-      console.log("Disconnected from MySQL");
-    }
   }
 }
 

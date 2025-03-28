@@ -1,605 +1,211 @@
-import type {
-  Collection,
-  CollectionConfig,
-  CreateArgs,
-  DeleteOneArgs,
-  Field,
-  FindArgs,
-  FindOneArgs,
-  MySQLAdapter,
-  PaginatedDocs,
-  SQLAdapterOptions,
-  TypeWithID,
-  UpdateOneArgs,
-  Where,
-} from "./types";
-import { buildDrizzleTable, setColumnID } from "./schema";
+import { fileURLToPath } from "url";
+import type { Operators } from "@payloadcms/drizzle";
+import type { DatabaseAdapterObj, Payload } from "payload";
 import {
-  buildRelationshipTable,
-  createRelationshipDrizzleTable,
-  processDocumentRelationships,
-} from "./relationships";
+  beginTransaction,
+  buildCreateMigration,
+  commitTransaction,
+  count,
+  countGlobalVersions,
+  countVersions,
+  create,
+  createGlobal,
+  createGlobalVersion,
+  createSchemaGenerator,
+  createVersion,
+  deleteMany,
+  deleteOne,
+  deleteVersions,
+  destroy,
+  find,
+  findGlobal,
+  findGlobalVersions,
+  findMigrationDir,
+  findOne,
+  findVersions,
+  migrate,
+  migrateDown,
+  migrateFresh,
+  migrateRefresh,
+  migrateReset,
+  migrateStatus,
+  operatorMap,
+  queryDrafts,
+  rollbackTransaction,
+  updateGlobal,
+  updateGlobalVersion,
+  updateJobs,
+  updateMany,
+  updateOne,
+  updateVersion,
+} from "@payloadcms/drizzle";
+import { ilike, like, notIlike, notLike } from "drizzle-orm";
+import { createDatabaseAdapter, defaultBeginTransaction } from "payload";
 
-import type { Payload } from "payload";
-import type { Pool } from "mysql2/promise";
-import { createPool } from "mysql2/promise";
-import { drizzle } from "./drizzle-proxy/mysql";
-import { eq } from "drizzle-orm";
+import type { Args, MySQLAdapter } from "./types.js";
+import { columnToCodeConverter } from "./columnToCodeConverter.js";
+import { connect } from "./connect.js";
+import { countDistinct } from "./countDistinct.js";
+import { convertPathToJSONTraversal } from "./createJSONQuery/convertPathToJSONTraversal.js";
+import { createJSONQuery } from "./createJSONQuery/index.js";
+import { defaultDrizzleSnapshot } from "./defaultSnapshot.js";
+import { deleteWhere } from "./deleteWhere.js";
+import { dropDatabase } from "./dropDatabase.js";
+import { execute } from "./execute.js";
+import { init } from "./init.js";
+import { insert } from "./insert.js";
+import { requireDrizzleKit } from "./requireDrizzleKit.js";
 
-/**
- * MySQL Database Adapter for PayloadCMS
- *
- * NOTE: This implementation differs from native PayloadCMS adapters:
- *
- * 1. We use a modular approach with separate folders for relationships, schema, and drizzle-proxy
- * 2. Our implementation has more explicit handling of MySQL-specific functionality
- * 3. Junction tables are manually created and managed for relationships
- * 4. We use direct SQL queries in some places for better control over the database
- *
- * These differences allow us to better handle MySQL's specific requirements while
- * maintaining compatibility with the PayloadCMS adapter interface.
- */
+export type { MigrateDownArgs, MigrateUpArgs } from "./types.js";
 
-/**
- * Helper function to process fields and identify relationship fields
- */
-function processFields(fields: Field[] = []): {
-  relationshipFields: Field[];
-  normalFields: Field[];
-} {
-  const relationshipFields: Field[] = [];
-  const normalFields: Field[] = [];
+export { sql } from "drizzle-orm";
 
-  fields.forEach((field) => {
-    if (field.type === "relationship") {
-      relationshipFields.push(field);
-    } else {
-      normalFields.push(field);
-    }
-  });
+const filename = fileURLToPath(import.meta.url);
 
-  return { relationshipFields, normalFields };
-}
+export function mysqlAdapter(args: Args): DatabaseAdapterObj<MySQLAdapter> {
+  const mysqlIDType = args.idType || "number";
+  const payloadIDType = mysqlIDType === "uuid" ? "text" : "number";
+  const allowIDOnCreate = args.allowIDOnCreate ?? false;
 
-/**
- * Helper to format SQL results into payload format
- */
-function formatSQLResult(result: any): any {
-  // For empty results
-  if (!result) return null;
+  function adapter({ payload }: { payload: Payload }) {
+    const migrationDir = findMigrationDir(args.migrationDir);
+    let resolveInitializing;
+    let rejectInitializing;
 
-  // Handle array results (multiple rows)
-  if (Array.isArray(result)) {
-    return result.map((item) => formatSQLResult(item));
+    const initializing = new Promise<void>((res, rej) => {
+      resolveInitializing = res;
+      rejectInitializing = rej;
+    });
+
+    // MySQL operators for case-sensitive and case-insensitive comparisons
+    const operators = {
+      ...operatorMap,
+      contains: ilike,
+      like,
+      not_like: notLike,
+      ilike,
+      not_ilike: notIlike,
+    } as unknown as Operators;
+
+    return createDatabaseAdapter<MySQLAdapter>({
+      name: "mysql",
+      afterSchemaInit: args.afterSchemaInit ?? [],
+      allowIDOnCreate,
+      autoIncrement: args.autoIncrement ?? false,
+      beforeSchemaInit: args.beforeSchemaInit ?? [],
+      // @ts-expect-error - vestiges of when tsconfig was not strict. Feel free to improve
+      client: undefined,
+      clientConfig: args.client,
+      collections: {},
+      defaultDrizzleSnapshot,
+      // @ts-expect-error - vestiges of when tsconfig was not strict. Feel free to improve
+      drizzle: undefined,
+      features: {
+        json: true,
+      },
+      fieldConstraints: {},
+      generateSchema: createSchemaGenerator({
+        columnToCodeConverter,
+        corePackageSuffix: "mysql-core",
+        defaultOutputFile: args.generateSchemaOutputFile,
+        tableImport: "mysqlTable",
+      }),
+      idType: mysqlIDType,
+      initializing,
+      localesSuffix: args.localesSuffix || "_locales",
+      logger: args.logger,
+      operators,
+      prodMigrations: args.prodMigrations,
+      // @ts-expect-error - vestiges of when tsconfig was not strict. Feel free to improve
+      push: args.push,
+      rawRelations: {},
+      rawTables: {},
+      relations: {},
+      relationshipsSuffix: args.relationshipsSuffix || "_rels",
+      schema: {},
+      schemaName: args.schemaName,
+      sessions: {},
+      tableNameMap: new Map<string, string>(),
+      tablePrefix: "", // Add empty table prefix by default
+      tables: {},
+      // @ts-expect-error - vestiges of when tsconfig was not strict. Feel free to improve
+      transactionOptions: args.transactionOptions || undefined,
+      updateJobs,
+      updateMany,
+      versionsSuffix: args.versionsSuffix || "_v",
+
+      // DatabaseAdapter
+      beginTransaction: args.transactionOptions
+        ? beginTransaction
+        : defaultBeginTransaction(),
+      commitTransaction,
+      connect,
+      convertPathToJSONTraversal,
+      count,
+      countDistinct,
+      countGlobalVersions,
+      countVersions,
+      create,
+      createGlobal,
+      createGlobalVersion,
+      createJSONQuery,
+      createMigration: buildCreateMigration({
+        executeMethod: "query",
+        filename,
+        sanitizeStatements({ sqlExecute, statements }) {
+          return statements
+            .map(
+              (statement) =>
+                `${sqlExecute}${statement?.replaceAll("`", "\\`")}\`)`,
+            )
+            .join("\n");
+        },
+      }),
+      createVersion,
+      defaultIDType: payloadIDType,
+      deleteMany,
+      deleteOne,
+      deleteVersions,
+      deleteWhere,
+      destroy,
+      dropDatabase,
+      execute,
+      find,
+      findGlobal,
+      findGlobalVersions,
+      // @ts-expect-error - vestiges of when tsconfig was not strict. Feel free to improve
+      findOne,
+      findVersions,
+      indexes: new Set<string>(),
+      init,
+      insert,
+      migrate,
+      migrateDown,
+      migrateFresh,
+      migrateRefresh,
+      migrateReset,
+      migrateStatus,
+      migrationDir,
+      packageName: "@payloadcmsdirectory/db-sql",
+      payload,
+      queryDrafts,
+      // @ts-expect-error - vestiges of when tsconfig was not strict. Feel free to improve
+      rejectInitializing,
+      requireDrizzleKit,
+      // @ts-expect-error - vestiges of when tsconfig was not strict. Feel free to improve
+      resolveInitializing,
+      rollbackTransaction,
+      updateGlobal,
+      updateGlobalVersion,
+      updateOne,
+      updateVersion,
+      upsert: updateOne,
+    });
   }
 
-  // Handle single row result
-  const formattedResult: Record<string, any> = {};
-
-  // Format each field in the result
-  Object.entries(result).forEach(([key, value]) => {
-    formattedResult[key] = value;
-  });
-
-  return formattedResult;
+  return {
+    allowIDOnCreate,
+    defaultIDType: payloadIDType,
+    init: adapter,
+  };
 }
-
-/**
- * MySQL Adapter for Payload CMS
- */
-export const sqlAdapter = (options: SQLAdapterOptions): MySQLAdapter => {
-  const { pool: poolOptions, prefix = "" } = options;
-
-  // Create MySQL connection pool
-  let pool: Pool;
-  let db: ReturnType<typeof drizzle>;
-
-  // Initialize collections registry
-  const collections: Record<string, Collection> = {};
-  const tables: Record<string, any> = {};
-  const tableNameMap = new Map<string, string>();
-
-  // Connect to the database
-  const connect = async (): Promise<void> => {
-    try {
-      pool = createPool({
-        host: poolOptions.host,
-        user: poolOptions.user,
-        password: poolOptions.password,
-        database: poolOptions.database,
-        port: poolOptions.port || 3306,
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0,
-      });
-
-      // Initialize Drizzle ORM with the MySQL pool
-      db = drizzle(pool);
-
-      console.log("Connected to MySQL database");
-    } catch (error) {
-      console.error("Failed to connect to MySQL database:", error);
-      throw error;
-    }
-  };
-
-  // Disconnect from the database
-  const disconnect = async (): Promise<void> => {
-    if (pool) {
-      await pool.end();
-      console.log("Disconnected from MySQL database");
-    }
-  };
-
-  // Create a collection schema in the database
-  const createCollection = async (
-    collectionConfig: CollectionConfig,
-  ): Promise<void> => {
-    const { slug, fields = [] } = collectionConfig;
-
-    try {
-      // Register collection in collections registry
-      collections[slug] = collectionConfig;
-
-      // Generate table name with prefix
-      const tableName = `${prefix}${slug}`;
-      tableNameMap.set(slug, tableName);
-
-      // Process fields to separate relationship fields
-      const { relationshipFields, normalFields } = processFields(fields);
-
-      // Build table config for normal fields
-      const tableConfig = {
-        name: tableName,
-        columns: [
-          {
-            name: "id",
-            type: "id",
-            primary: true,
-          },
-          ...normalFields.map((field) => ({
-            name: field.name,
-            type: field.type === "number" ? "int" : "varchar",
-            required: field.required || false,
-            unique: field.unique || false,
-            defaultValue: field.defaultValue,
-            length: field.type === "text" ? 1000 : undefined,
-          })),
-        ],
-      };
-
-      // Build the Drizzle table
-      const table = buildDrizzleTable({
-        adapter: {
-          tables,
-          tablePrefix: prefix,
-          db,
-        } as any,
-        tableName,
-        tableConfig,
-      });
-
-      // Process relationship fields to create junction tables
-      relationshipFields.forEach((field) => {
-        if (typeof field.relationTo === "string") {
-          buildRelationshipTable({
-            adapter: {
-              tables,
-              tablePrefix: prefix,
-              client: pool,
-              db,
-              tableNameMap,
-            } as any,
-            fromCollection: slug,
-            toCollection: field.relationTo,
-            relationField: field.name,
-          });
-        }
-      });
-
-      console.log(`Created collection: ${slug}`);
-    } catch (error) {
-      console.error(`Failed to create collection ${slug}:`, error);
-      throw error;
-    }
-  };
-
-  // Find documents in a collection
-  const find = async <T extends TypeWithID = any>({
-    collection,
-    limit = 10,
-    page = 1,
-    sort,
-    where,
-    depth = 0,
-    req,
-  }: FindArgs): Promise<PaginatedDocs<T>> => {
-    try {
-      const tableName =
-        tableNameMap.get(collection) || `${prefix}${collection}`;
-
-      // Build WHERE clause
-      let whereClause = "";
-      const whereParams: any[] = [];
-
-      if (where) {
-        // Simple implementation of where clauses
-        const conditions: string[] = [];
-
-        Object.entries(where).forEach(([field, condition]) => {
-          if (condition && typeof condition === "object") {
-            if ("equals" in condition) {
-              conditions.push(`${field} = ?`);
-              whereParams.push(condition.equals);
-            } else if ("not_equals" in condition) {
-              conditions.push(`${field} != ?`);
-              whereParams.push(condition.not_equals);
-            } else if ("greater_than" in condition) {
-              conditions.push(`${field} > ?`);
-              whereParams.push(condition.greater_than);
-            } else if ("less_than" in condition) {
-              conditions.push(`${field} < ?`);
-              whereParams.push(condition.less_than);
-            } else if ("like" in condition) {
-              conditions.push(`${field} LIKE ?`);
-              whereParams.push(`%${condition.like}%`);
-            } else if ("in" in condition && Array.isArray(condition.in)) {
-              const placeholders = condition.in.map(() => "?").join(",");
-              conditions.push(`${field} IN (${placeholders})`);
-              whereParams.push(...condition.in);
-            }
-          }
-        });
-
-        if (conditions.length > 0) {
-          whereClause = ` WHERE ${conditions.join(" AND ")}`;
-        }
-      }
-
-      // Calculate pagination
-      const offset = (page - 1) * limit;
-
-      // Build ORDER BY clause
-      let orderClause = "";
-      if (sort) {
-        const sortFields = Array.isArray(sort) ? sort : [sort];
-        const orderParts = sortFields.map((field) => {
-          const direction = field.startsWith("-") ? "DESC" : "ASC";
-          const cleanField = field.startsWith("-") ? field.substring(1) : field;
-          return `${cleanField} ${direction}`;
-        });
-
-        if (orderParts.length > 0) {
-          orderClause = ` ORDER BY ${orderParts.join(", ")}`;
-        }
-      }
-
-      // Count total documents
-      const [countResult] = await pool.query(
-        `SELECT COUNT(*) as count FROM ${tableName}${whereClause}`,
-        whereParams,
-      );
-
-      const totalDocs = (countResult as any[])[0].count;
-
-      // Query documents with pagination
-      const [rows] = await pool.query(
-        `SELECT * FROM ${tableName}${whereClause}${orderClause} LIMIT ? OFFSET ?`,
-        [...whereParams, limit, offset],
-      );
-
-      // Format results
-      let docs = Array.isArray(rows) ? (rows as T[]) : [];
-
-      // Process relationships if depth > 0
-      if (depth > 0) {
-        const collectionConfig = collections[collection];
-        docs = await Promise.all(
-          docs.map(async (doc) => {
-            return processDocumentRelationships(
-              {
-                client: pool,
-                tables,
-                collections,
-                tablePrefix: prefix,
-                tableNameMap,
-              } as any,
-              collection,
-              collectionConfig?.fields || [],
-              doc,
-              depth,
-              0,
-            );
-          }),
-        );
-      }
-
-      // Calculate pagination metadata
-      const totalPages = Math.ceil(totalDocs / limit);
-      const hasPrevPage = page > 1;
-      const hasNextPage = page < totalPages;
-
-      return {
-        docs,
-        totalDocs,
-        limit,
-        totalPages,
-        page,
-        pagingCounter: offset + 1,
-        hasPrevPage,
-        hasNextPage,
-        prevPage: hasPrevPage ? page - 1 : null,
-        nextPage: hasNextPage ? page + 1 : null,
-      };
-    } catch (error) {
-      console.error(`Error finding documents in ${collection}:`, error);
-      throw error;
-    }
-  };
-
-  // Find a single document
-  const findOne = async <T extends TypeWithID = any>({
-    collection,
-    where,
-    depth = 0,
-    req,
-  }: FindOneArgs): Promise<T> => {
-    try {
-      // Use the find method with limit 1
-      const result = await find({
-        collection,
-        where,
-        limit: 1,
-        page: 1,
-        depth,
-        req,
-      });
-
-      if (result.docs.length === 0) {
-        throw new Error(`Document not found in ${collection}`);
-      }
-
-      return result.docs[0];
-    } catch (error) {
-      console.error(`Error finding document in ${collection}:`, error);
-      throw error;
-    }
-  };
-
-  // Find a document by ID
-  const findByID = async <T extends TypeWithID = any>({
-    collection,
-    id,
-    depth = 0,
-    req,
-  }: {
-    collection: string;
-    id: string | number;
-    depth?: number;
-    req?: any;
-  }): Promise<T> => {
-    return findOne({
-      collection,
-      where: { id: { equals: id } },
-      depth,
-      req,
-    });
-  };
-
-  // Create a document
-  const create = async ({
-    collection,
-    data,
-    req,
-    draft = false,
-  }: CreateArgs): Promise<any> => {
-    try {
-      // Get the table name for the collection
-      const tableName =
-        tableNameMap.get(collection) || `${prefix}${collection}`;
-
-      // Execute the query within a transaction
-      return await db.transaction(async (tx) => {
-        // Create the record
-        const insertResult = await tx
-          .insert(tables[tableName])
-          .values(data)
-          .execute();
-
-        // Get the inserted ID (fallback to data.id if insertId not available)
-        const insertId = (insertResult as any).insertId || data.id;
-
-        // Process relationships if needed
-        const collectionConfig = collections[collection];
-        const { relationshipFields } = processFields(
-          collectionConfig?.fields || [],
-        );
-
-        for (const field of relationshipFields) {
-          const fieldName = field.name;
-          const value = data[fieldName];
-
-          if (value !== undefined && typeof field.relationTo === "string") {
-            // Delete existing relationships
-            await tx
-              .delete(tables[`${prefix}${collection}_${field.relationTo}_rels`])
-              .where(
-                eq(
-                  tables[`${prefix}${collection}_${field.relationTo}_rels`]
-                    .parentId,
-                  insertId,
-                ),
-              )
-              .execute();
-
-            // Create new relationships
-            if (value !== null) {
-              await createRelationshipDrizzleTable({
-                adapter: {
-                  client: pool,
-                  db,
-                  tables,
-                  tableNameMap,
-                  tablePrefix: prefix,
-                } as any,
-                fromCollection: collection,
-                fromId: insertId,
-                toCollection: field.relationTo,
-                relationField: fieldName,
-                value,
-              });
-            }
-          }
-        }
-
-        // Return the created record
-        return { id: insertId, ...data };
-      });
-    } catch (error) {
-      console.error(`Error creating record in ${collection}:`, error);
-      throw error;
-    }
-  };
-
-  // Update a document
-  const update = async ({
-    collection,
-    id,
-    data,
-    req,
-  }: UpdateOneArgs): Promise<any> => {
-    try {
-      // Get the table name for the collection
-      const tableName =
-        tableNameMap.get(collection) || `${prefix}${collection}`;
-
-      // Execute the query within a transaction
-      return await db.transaction(async (tx) => {
-        // Update the record
-        await tx
-          .update(tables[tableName])
-          .set(data)
-          .where(eq(tables[tableName].id, id))
-          .execute();
-
-        // Process relationships if needed
-        const collectionConfig = collections[collection];
-        const { relationshipFields } = processFields(
-          collectionConfig?.fields || [],
-        );
-
-        for (const field of relationshipFields) {
-          const fieldName = field.name;
-          const value = data[fieldName];
-
-          if (value !== undefined && typeof field.relationTo === "string") {
-            // Delete existing relationships
-            await tx
-              .delete(tables[`${prefix}${collection}_${field.relationTo}_rels`])
-              .where(
-                eq(
-                  tables[`${prefix}${collection}_${field.relationTo}_rels`]
-                    .parentId,
-                  id,
-                ),
-              )
-              .execute();
-
-            // Create new relationships
-            if (value !== null) {
-              await createRelationshipDrizzleTable({
-                adapter: {
-                  client: pool,
-                  db,
-                  tables,
-                  tableNameMap,
-                  tablePrefix: prefix,
-                } as any,
-                fromCollection: collection,
-                fromId: id,
-                toCollection: field.relationTo,
-                relationField: fieldName,
-                value,
-              });
-            }
-          }
-        }
-
-        // Return the updated record
-        return { id, ...data };
-      });
-    } catch (error) {
-      console.error(`Error updating record in ${collection}:`, error);
-      throw error;
-    }
-  };
-
-  // Delete a document
-  const deleteOne = async ({
-    collection,
-    id,
-    req,
-  }: DeleteOneArgs): Promise<void> => {
-    try {
-      const tableName =
-        tableNameMap.get(collection) || `${prefix}${collection}`;
-      const collectionConfig = collections[collection];
-
-      // Process fields to separate relationship fields
-      const { relationshipFields } = processFields(collectionConfig?.fields);
-
-      // Delete relationships first
-      for (const field of relationshipFields) {
-        if (typeof field.relationTo === "string") {
-          const relationTableName = `${prefix}${collection}_${field.relationTo}_rels`;
-
-          await pool.query(
-            `DELETE FROM ${relationTableName} WHERE parentId = ?`,
-            [id],
-          );
-        }
-      }
-
-      // Delete the main document
-      await pool.query(`DELETE FROM ${tableName} WHERE id = ?`, [id]);
-    } catch (error) {
-      console.error(`Error deleting document in ${collection}:`, error);
-      throw error;
-    }
-  };
-
-  // Build adapter object with delayed connection initialization
-  const adapter: MySQLAdapter = {
-    client: undefined as unknown as Pool, // Will be set after connect
-    db: undefined as unknown as ReturnType<typeof drizzle>, // Will be set after connect
-    tables,
-    collections,
-    tableNameMap,
-    tablePrefix: prefix,
-
-    // Connection methods
-    connect: async () => {
-      await connect();
-      // Update the properties after connection
-      adapter.client = pool;
-      adapter.db = db;
-    },
-    disconnect,
-
-    // Schema methods
-    createCollection,
-
-    // CRUD methods
-    create,
-    delete: deleteOne,
-    find,
-    findOne,
-    findByID,
-    update,
-
-    // Relationship processing
-    processRelationships: processDocumentRelationships as any,
-  };
-
-  return adapter;
-};

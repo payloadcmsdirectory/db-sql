@@ -1,32 +1,11 @@
-import { MySQLAdapter } from "./types";
-import { sql } from "./drizzle-proxy";
+import type { DeleteWhere, MySQLAdapter } from "./types.js";
 
-/**
- * Delete records from a collection based on a where condition.
- *
- * @param this MySQLAdapter instance
- * @param collection Collection name
- * @param whereSQL SQL where clause
- * @returns Number of deleted records
- */
-export async function deleteWhere(
+export const deleteWhere: DeleteWhere = async function (
+  // Here 'this' is not a parameter. See:
+  // https://www.typescriptlang.org/docs/handbook/2/classes.html#this-parameters
   this: MySQLAdapter,
-  collection: string,
-  whereSQL: string,
-): Promise<number> {
-  try {
-    const table = this.tables[collection];
-    if (!table) return 0;
-
-    const result = await this.db.delete(table).where(sql.raw(whereSQL));
-
-    return Number(result.rowsAffected) || 0;
-  } catch (error) {
-    if (this.payload?.logger) {
-      this.payload.logger.error(
-        `Error in deleteWhere: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    throw error;
-  }
-}
+  { db, tableName, where },
+) {
+  const table = this.tables[tableName];
+  await db.delete(table).where(where);
+};

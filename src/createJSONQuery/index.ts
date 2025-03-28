@@ -1,104 +1,94 @@
-import { sql } from "drizzle-orm";
+import type { CreateJSONQueryArgs } from "@payloadcms/drizzle/types";
 
-import type { MySQLAdapter } from "../types.js";
+type FromArrayArgs = {
+  isRoot?: true;
+  operator: string;
+  pathSegments: string[];
+  table: string;
+  treatAsArray?: string[];
+  value: boolean | number | string;
+};
 
-export function createJSONQuery(
-  this: MySQLAdapter,
-  path: string[],
-  operator: string,
-  value: any,
-): { query: string; params: any[] } {
-  // For MySQL, we use JSON_EXTRACT for path-based queries
-  const jsonPath = path.map((segment) => `$.${segment}`).join(".");
-  const params = [];
+const fromArray = ({
+  isRoot,
+  operator,
+  pathSegments,
+  table,
+  treatAsArray,
+  value,
+}: FromArrayArgs) => {
+  const newPathSegments = pathSegments.slice(1);
+  const alias = `${pathSegments[isRoot ? 0 : 1]}_alias_${newPathSegments.length}`;
 
-  // Adjust value based on operator and type
-  let adjustedValue = value;
-  if (typeof value === "object" && value !== null) {
-    adjustedValue = JSON.stringify(value);
+  return `EXISTS (
+    SELECT 1
+    FROM json_each(${table}.${pathSegments[0]}) AS ${alias}
+    WHERE ${createJSONQuery({
+      operator,
+      pathSegments: newPathSegments,
+      table: alias,
+      treatAsArray,
+      value,
+    })}
+  )`;
+};
+
+type CreateConstraintArgs = {
+  alias?: string;
+  operator: string;
+  pathSegments: string[];
+  treatAsArray?: string[];
+  value: boolean | number | string;
+};
+
+const createConstraint = ({
+  alias,
+  operator,
+  pathSegments,
+  value,
+}: CreateConstraintArgs): string => {
+  const newAlias = `${pathSegments[0]}_alias_${pathSegments.length - 1}`;
+  let formattedValue = value;
+  let formattedOperator = operator;
+  if (["contains", "like"].includes(operator)) {
+    formattedOperator = "like";
+    formattedValue = `%${value}%`;
+  } else if (["not_like", "notlike"].includes(operator)) {
+    formattedOperator = "not like";
+    formattedValue = `%${value}%`;
+  } else if (operator === "equals") {
+    formattedOperator = "=";
   }
 
-  switch (operator) {
-    case "equals":
-      return {
-        query: `JSON_EXTRACT(data, ?) = ?`,
-        params: [jsonPath, adjustedValue],
-      };
+  return `EXISTS (
+  SELECT 1
+  FROM json_each(${alias}.value -> '${pathSegments[0]}') AS ${newAlias}
+  WHERE COALESCE(${newAlias}.value ->> '${pathSegments[1]}', '') ${formattedOperator} '${formattedValue}'
+  )`;
+};
 
-    case "not_equals":
-      return {
-        query: `JSON_EXTRACT(data, ?) != ? OR JSON_EXTRACT(data, ?) IS NULL`,
-        params: [jsonPath, adjustedValue, jsonPath],
-      };
-
-    case "exists":
-      return {
-        query: value
-          ? `JSON_EXTRACT(data, ?) IS NOT NULL`
-          : `JSON_EXTRACT(data, ?) IS NULL`,
-        params: [jsonPath],
-      };
-
-    case "contains":
-      return {
-        query: `JSON_EXTRACT(data, ?) LIKE ?`,
-        params: [jsonPath, `%${adjustedValue}%`],
-      };
-
-    case "in":
-      if (Array.isArray(value)) {
-        const placeholders = value.map(() => "?").join(", ");
-        return {
-          query: `JSON_EXTRACT(data, ?) IN (${placeholders})`,
-          params: [jsonPath, ...value],
-        };
-      }
-      return {
-        query: "FALSE",
-        params: [],
-      };
-
-    case "not_in":
-      if (Array.isArray(value)) {
-        const placeholders = value.map(() => "?").join(", ");
-        return {
-          query: `JSON_EXTRACT(data, ?) NOT IN (${placeholders}) OR JSON_EXTRACT(data, ?) IS NULL`,
-          params: [jsonPath, ...value, jsonPath],
-        };
-      }
-      return {
-        query: "TRUE",
-        params: [],
-      };
-
-    case "greater_than":
-      return {
-        query: `JSON_EXTRACT(data, ?) > ?`,
-        params: [jsonPath, adjustedValue],
-      };
-
-    case "greater_than_equal":
-      return {
-        query: `JSON_EXTRACT(data, ?) >= ?`,
-        params: [jsonPath, adjustedValue],
-      };
-
-    case "less_than":
-      return {
-        query: `JSON_EXTRACT(data, ?) < ?`,
-        params: [jsonPath, adjustedValue],
-      };
-
-    case "less_than_equal":
-      return {
-        query: `JSON_EXTRACT(data, ?) <= ?`,
-        params: [jsonPath, adjustedValue],
-      };
-
-    default:
-      return {
-        query: "FALSE",
-        params: [],
-      };
+export const createJSONQuery = ({
+  operator,
+  pathSegments,
+  table,
+  treatAsArray,
+  value,
+}: CreateJSONQueryArgs): string => {
+  if (treatAsArray?.includes(pathSegments[1]!) && table) {
+    return fromArray({
+      operator,
+      pathSegments,
+      table,
+      treatAsArray,
+      value,
+    });
   }
-}
+
+  return createConstraint({
+    alias: table,
+    operator,
+    pathSegments,
+    treatAsArray,
+    value,
+  });
+};

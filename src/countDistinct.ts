@@ -1,36 +1,48 @@
-import { MySQLAdapter } from "./types";
-import { sql } from "./drizzle-proxy";
+import type { ChainedMethods } from "@payloadcms/drizzle/types";
+import { chainMethods } from "@payloadcms/drizzle";
+import { count, sql } from "drizzle-orm";
 
-/**
- * Count the number of distinct values for a specific field in a collection.
- *
- * @param this MySQLAdapter instance
- * @param collection Collection name
- * @param field Field to count
- * @returns Count of distinct values
- */
-export async function countDistinct(
+import type { CountDistinct, MySQLAdapter } from "./types.js";
+
+export const countDistinct: CountDistinct = async function countDistinct(
   this: MySQLAdapter,
-  collection: string,
-  field: string,
-): Promise<number> {
-  try {
-    const table = this.tables[collection];
-    if (!table) return 0;
-
-    const result = await this.db
+  { db, joins, tableName, where },
+) {
+  // When we don't have any joins - use a simple COUNT(*) query.
+  if (joins.length === 0) {
+    const countResult = await db
       .select({
-        count: sql<number>`COUNT(DISTINCT ${sql.identifier(field)})`,
+        count: count(),
       })
-      .from(table);
-
-    return Number(result[0]?.count) || 0;
-  } catch (error) {
-    if (this.payload?.logger) {
-      this.payload.logger.error(
-        `Error in countDistinct: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    throw error;
+      .from(this.tables[tableName])
+      .where(where);
+    return Number(countResult[0]?.count);
   }
-}
+
+  const chainedMethods: ChainedMethods = [];
+
+  joins.forEach(({ condition, table }) => {
+    chainedMethods.push({
+      args: [table, condition],
+      method: "leftJoin",
+    });
+  });
+
+  // When we have any joins, we need to count each individual ID only once.
+  // COUNT(*) doesn't work for this well in this case, as it also counts joined tables.
+  // SELECT (COUNT DISTINCT id) has a very slow performance on large tables.
+  // Instead, COUNT (GROUP BY id) can be used which is still slower than COUNT(*) but acceptable.
+  const countResult = await chainMethods({
+    methods: chainedMethods,
+    query: db
+      .select({
+        count: sql`COUNT(1) OVER()`,
+      })
+      .from(this.tables[tableName])
+      .where(where)
+      .groupBy(this.tables[tableName].id)
+      .limit(1),
+  });
+
+  return Number(countResult[0]?.count);
+};

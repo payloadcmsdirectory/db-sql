@@ -1,47 +1,50 @@
-import { MySQLAdapter } from "./types";
+import type { DrizzleAdapter } from "@payloadcms/drizzle/types";
+import type { Init } from "payload";
+import {
+  buildDrizzleRelations,
+  buildRawSchema,
+  executeSchemaHooks,
+} from "@payloadcms/drizzle";
+
+import type { MySQLAdapter } from "./types";
+import { buildDrizzleTable } from "./schema/buildDrizzleTable";
+import { setColumnID } from "./schema/setColumnID";
 
 /**
- * Initialize the MySQL adapter
- *
- * @param this MySQLAdapter instance
- * @returns Promise that resolves when initialization is complete
+ * Initialize the database tables
  */
-export async function init(this: MySQLAdapter): Promise<void> {
-  try {
-    // Run before schema init hooks
-    if (this.beforeSchemaInit && this.beforeSchemaInit.length > 0) {
-      for (const hook of this.beforeSchemaInit) {
-        await hook({ adapter: this });
-      }
-    }
+export const init: Init = async function init(this: MySQLAdapter) {
+  let locales: string[] | undefined;
 
-    // Initialize schema (implementation specific to the adapter)
-    // TODO: Add schema initialization logic here
+  this.rawRelations = {};
+  this.rawTables = {};
 
-    // Run after schema init hooks
-    if (this.afterSchemaInit && this.afterSchemaInit.length > 0) {
-      for (const hook of this.afterSchemaInit) {
-        await hook({ adapter: this });
-      }
-    }
-
-    if (this.payload?.logger) {
-      this.payload.logger.info("MySQL adapter initialized successfully");
-    }
-  } catch (error) {
-    if (this.payload?.logger) {
-      this.payload.logger.error(
-        `Error initializing MySQL adapter: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-
-    // Reject the initialization promise if it exists
-    if (this.rejectInitializing) {
-      this.rejectInitializing(
-        error instanceof Error ? error : new Error(String(error)),
-      );
-    }
-
-    throw error;
+  if (this.payload.config.localization) {
+    locales = this.payload.config.localization.locales.map(({ code }) => code);
   }
-}
+
+  const adapter = this as unknown as DrizzleAdapter;
+
+  buildRawSchema({
+    adapter,
+    setColumnID,
+  });
+
+  await executeSchemaHooks({ type: "beforeSchemaInit", adapter: this });
+
+  for (const tableName in this.rawTables) {
+    buildDrizzleTable({
+      adapter,
+      locales: locales || ["en"],
+      rawTable: this.rawTables[tableName]!,
+    });
+  }
+
+  buildDrizzleRelations({
+    adapter,
+  });
+
+  await executeSchemaHooks({ type: "afterSchemaInit", adapter: this });
+
+  this.payload.logger.info("MySQL adapter initialized successfully");
+};

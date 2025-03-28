@@ -1,29 +1,14 @@
-import type { ExtractTablesWithRelations } from "drizzle-orm";
-import { mysqlTable, varchar } from "drizzle-orm/mysql-core";
-import { createInsertSchema } from "drizzle-zod";
+import type { DrizzleMySQLSnapshotJSON } from "drizzle-kit/api";
 
-/**
- * Default snapshot schema for MySQL
- * This is used when no schema is provided
- */
 export const defaultDrizzleSnapshot = {
-  defaultData: {
-    mysqlTables: [
-      {
-        name: "schema_migrations",
-        columns: {
-          version: varchar("version", { length: 255 }).primaryKey().notNull(),
-          dirty: varchar("dirty", { length: 1 }).notNull(),
-        },
-        indexes: [],
-      },
-    ],
-    tables: () => ({
-      schema_migrations: mysqlTable("schema_migrations", {
-        version: varchar("version", { length: 255 }).primaryKey().notNull(),
-        dirty: varchar("dirty", { length: 1 }).notNull(),
-      }),
-    }),
+  id: "00000000-0000-0000-0000-000000000000",
+  dialect: "mysql",
+  version: "5",
+  tables: {},
+  _meta: {
+    tables: {},
+    columns: {},
   },
-  schema: {},
+  schemas: {},
+  views: {},
 };

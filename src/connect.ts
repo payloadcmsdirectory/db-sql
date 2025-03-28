@@ -1,73 +1,69 @@
-import type { MySQLAdapter } from "./types";
+import type { DrizzleAdapter } from "@payloadcms/drizzle/types";
+import type { Connect, Migration } from "payload";
+import { pushDevSchema } from "@payloadcms/drizzle";
 import { drizzle } from "drizzle-orm/mysql2";
-import type mysql from "mysql2/promise";
+import mysql from "mysql2/promise";
 
-// Initialize MySQL connection and Drizzle ORM
-export async function connect(this: MySQLAdapter): Promise<void> {
-  // If the client is already defined, we don't need to connect again
-  if (this.client) {
-    return;
-  }
+import type { MySQLAdapter } from "./types.js";
 
-  // Create a MySQL connection pool using the provided configuration
+export const connect: Connect = async function connect(
+  this: MySQLAdapter,
+  options = {
+    hotReload: false,
+  },
+) {
+  const { hotReload } = options;
+
+  this.schema = {
+    ...this.tables,
+    ...this.relations,
+  };
+
   try {
-    const { createPool } = await import("mysql2/promise");
-    const config = this.clientConfig;
-
-    if (!config || !config.pool) {
-      throw new Error("MySQL connection configuration is missing");
+    if (!this.client) {
+      this.client = await mysql.createPool(this.clientConfig.pool);
     }
 
-    // Create the MySQL connection pool
-    const pool = createPool({
-      host: config.pool.host,
-      user: config.pool.user,
-      password: config.pool.password,
-      database: config.pool.database,
-      port: config.pool.port || 3306,
-      // Useful settings for better stability
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
-      // Better JSON handling
-      typeCast: function (field: any, next: () => any) {
-        if (field.type === "JSON") {
-          const value = field.string();
-          if (value !== null) {
-            return JSON.parse(value);
-          }
-        }
-        return next();
-      },
+    const logger = this.logger || false;
+    this.drizzle = drizzle(this.client, {
+      logger,
+      schema: this.schema,
+      mode: "default",
     });
 
-    // Test the connection
-    const connection = await pool.getConnection();
-    connection.release();
-
-    this.client = pool as mysql.Pool;
-    this.drizzle = drizzle(pool);
-
-    if (this.payload?.logger) {
-      this.payload.logger.info(`Connected to MySQL: ${config.pool.database}`);
+    if (!hotReload) {
+      if (process.env.PAYLOAD_DROP_DATABASE === "true") {
+        this.payload.logger.info(`---- DROPPING TABLES ----`);
+        await this.dropDatabase({ adapter: this });
+        this.payload.logger.info("---- DROPPED TABLES ----");
+      }
     }
-
-    if (this.resolveInitializing) {
-      this.resolveInitializing();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    this.payload.logger.error({
+      err,
+      msg: `Error: cannot connect to MySQL: ${message}`,
+    });
+    if (typeof this.rejectInitializing === "function") {
+      this.rejectInitializing();
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    if (this.payload?.logger) {
-      this.payload.logger.error(`Failed to connect to MySQL: ${errorMessage}`);
-    }
-
-    if (this.rejectInitializing) {
-      this.rejectInitializing(
-        error instanceof Error ? error : new Error(errorMessage),
-      );
-    }
-
-    throw error;
+    process.exit(1);
   }
-}
+
+  // Only push schema if not in production
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.PAYLOAD_MIGRATING !== "true" &&
+    this.push !== false
+  ) {
+    await pushDevSchema(this as unknown as DrizzleAdapter);
+  }
+
+  if (typeof this.resolveInitializing === "function") {
+    this.resolveInitializing();
+  }
+
+  if (process.env.NODE_ENV === "production" && this.prodMigrations) {
+    await this.migrate({ migrations: this.prodMigrations as Migration[] });
+  }
+};

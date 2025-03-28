@@ -12,11 +12,19 @@ A SQL database adapter for PayloadCMS, with support for MySQL.
 - ✅ Transaction support
 - ✅ TypeScript compatibility
 - ✅ Basic query filtering
-- ⬜ Migration support
+- ✅ Migration foundation
 - ⬜ Sorting support
 - ⬜ Full text search
 - ⬜ Localization support
 - ⬜ Versioning
+
+## Recent Changes (v0.0.51)
+
+- Replaced SQLite adapter with MySQL adapter
+- Updated connection handling to use MySQL pool connections
+- Fixed execute function to properly handle MySQL queries
+- Updated schema initialization to follow PayloadCMS standards
+- Added dedicated test script for MySQL connection testing
 
 ## Installation
 
@@ -27,7 +35,7 @@ npm install @payloadcmsdirectory/db-sql
 ## Usage
 
 ```typescript
-import { sqlAdapter } from "@payloadcmsdirectory/db-sql";
+import { mysqlAdapter } from "@payloadcmsdirectory/db-sql";
 import { buildConfig } from "payload/config";
 
 const config = buildConfig({
@@ -37,7 +45,7 @@ const config = buildConfig({
   ],
 
   // Configure the MySQL adapter
-  db: sqlAdapter({
+  db: mysqlAdapter({
     pool: {
       host: "localhost",
       user: "username",
@@ -56,15 +64,17 @@ export default config;
 
 The MySQL adapter accepts the following options:
 
-| Option          | Type   | Description                                    |
-| --------------- | ------ | ---------------------------------------------- |
-| `pool`          | Object | MySQL connection configuration                 |
-| `pool.host`     | String | MySQL host                                     |
-| `pool.user`     | String | MySQL username                                 |
-| `pool.password` | String | MySQL password                                 |
-| `pool.database` | String | MySQL database name                            |
-| `pool.port`     | Number | MySQL port (optional, defaults to 3306)        |
-| `prefix`        | String | Table prefix (optional, defaults to no prefix) |
+| Option          | Type    | Description                                                  |
+| --------------- | ------- | ------------------------------------------------------------ |
+| `pool`          | Object  | MySQL connection configuration                               |
+| `pool.host`     | String  | MySQL host                                                   |
+| `pool.user`     | String  | MySQL username                                               |
+| `pool.password` | String  | MySQL password                                               |
+| `pool.database` | String  | MySQL database name                                          |
+| `pool.port`     | Number  | MySQL port (optional, defaults to 3306)                      |
+| `prefix`        | String  | Table prefix (optional, defaults to no prefix)               |
+| `idType`        | String  | ID type (optional, "number" or "uuid", defaults to "number") |
+| `autoIncrement` | Boolean | Enable auto-increment for IDs (optional, defaults to true)   |
 
 ## Transactions
 
@@ -83,6 +93,15 @@ The adapter supports the following PayloadCMS field types:
 - date
 - checkbox
 - relationship (including hasMany relationships)
+
+## Testing
+
+You can run a simple connection test to verify your MySQL configuration:
+
+```bash
+# Edit test/simple-test.js to match your database credentials
+npm run test
+```
 
 ## Limitations
 

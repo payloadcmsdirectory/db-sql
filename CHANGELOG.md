@@ -1,5 +1,21 @@
 # PayloadCMS SQL Database Adapter Changelog
 
+## 0.0.5 (2025-03-28)
+
+### Added
+
+- Implemented versioning support using @payloadcms/drizzle functions
+- Added requireDrizzleKit implementation for better schema management
+- Added support for all database adapter features from PayloadCMS
+- Synchronized adapter implementation with PayloadCMS database adapters
+
+### Changed
+
+- Refactored adapter to use imported versioning functions directly
+- Removed custom implementations in favor of using PayloadCMS provided functions
+- Updated dependencies to latest compatible versions
+- Improved TypeScript type safety
+
 ## 0.0.4 (2025-03-27)
 
 ### Added
@@ -52,7 +68,6 @@
 
 - Add transaction support for atomic operations
 - Fix TypeScript build issues
-- Add support for hooks (collection-level and field-level)
 - Implement versioning support
 - Add proper access control integration
 

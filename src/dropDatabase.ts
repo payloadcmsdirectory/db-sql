@@ -1,5 +1,5 @@
-import { MySQLAdapter } from "./types";
 import { sql } from "./drizzle-proxy";
+import { MySQLAdapter } from "./types";
 
 /**
  * Drop all tables in the database
@@ -13,10 +13,10 @@ export async function dropDatabase(this: MySQLAdapter): Promise<void> {
 
   try {
     // Disable foreign key checks to prevent constraint errors
-    await this.db.execute(sql`SET FOREIGN_KEY_CHECKS = 0;`);
+    await this.drizzle.execute(sql`SET FOREIGN_KEY_CHECKS = 0;`);
 
     // Get all tables
-    const result = await this.db.execute(sql`
+    const result = await this.drizzle.execute(sql`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = DATABASE()
@@ -29,13 +29,13 @@ export async function dropDatabase(this: MySQLAdapter): Promise<void> {
 
     // Drop each table
     for (const tableName of tableNames) {
-      await this.db.execute(
+      await this.drizzle.execute(
         sql`DROP TABLE IF EXISTS ${sql.identifier(tableName)}`,
       );
     }
 
     // Re-enable foreign key checks
-    await this.db.execute(sql`SET FOREIGN_KEY_CHECKS = 1;`);
+    await this.drizzle.execute(sql`SET FOREIGN_KEY_CHECKS = 1;`);
 
     if (this.payload?.logger) {
       this.payload.logger.info("Database tables dropped successfully");
@@ -49,7 +49,7 @@ export async function dropDatabase(this: MySQLAdapter): Promise<void> {
 
     // Re-enable foreign key checks even if there was an error
     try {
-      await this.db.execute(sql`SET FOREIGN_KEY_CHECKS = 1;`);
+      await this.drizzle.execute(sql`SET FOREIGN_KEY_CHECKS = 1;`);
     } catch (e) {
       // Ignore error when re-enabling foreign key checks
     }

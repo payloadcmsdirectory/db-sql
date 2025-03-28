@@ -1,133 +1,102 @@
 # Payload SQL Database Adapter
 
-A SQL database adapter for PayloadCMS, with support for MySQL.
+An SQL database adapter for [PayloadCMS](https://payloadcms.com).
 
-> **Alpha Development**: This package is in active development and should not be used in production.
+> **Note:** This package is currently in alpha development and should not be used in production.
 
-## Features
+## Current Version: 0.0.52
 
-- ✅ MySQL database support
-- ✅ Automatic table and schema management
-- ✅ Relationship support with junction tables
-- ✅ Transaction support
-- ✅ TypeScript compatibility
-- ✅ Basic query filtering
-- ✅ Migration foundation
-- ⬜ Sorting support
-- ⬜ Full text search
-- ⬜ Localization support
-- ⬜ Versioning
+### What's New
 
-## Recent Changes (v0.0.51)
-
-- Replaced SQLite adapter with MySQL adapter
-- Updated connection handling to use MySQL pool connections
-- Fixed execute function to properly handle MySQL queries
-- Updated schema initialization to follow PayloadCMS standards
-- Added dedicated test script for MySQL connection testing
+- Updated the feature list to correctly reflect versioning and localization support
+- Fixed bug in MySQL adapter initialization
+- Added improvements to the connection handling
+- Updated documentation
 
 ## Installation
 
 ```bash
 npm install @payloadcmsdirectory/db-sql
+# or
+yarn add @payloadcmsdirectory/db-sql
+# or
+pnpm add @payloadcmsdirectory/db-sql
 ```
 
 ## Usage
 
 ```typescript
-import { mysqlAdapter } from "@payloadcmsdirectory/db-sql";
-import { buildConfig } from "payload/config";
+import { buildConfig } from 'payload/config';
+import { mysqlAdapter } from '@payloadcmsdirectory/db-sql/mysql';
 
-const config = buildConfig({
-  // Your PayloadCMS configuration
-  collections: [
-    /* your collections */
-  ],
-
-  // Configure the MySQL adapter
-  db: mysqlAdapter({
-    pool: {
-      host: "localhost",
-      user: "username",
-      password: "password",
-      database: "payload_db",
-      port: 3306, // optional, defaults to 3306
-    },
-    prefix: "pl_", // optional table prefix
-  }),
+export default buildConfig({
+  collections: [...],
+  db: {
+    adapter: mysqlAdapter({
+      pool: {
+        host: 'localhost',
+        port: 3306,
+        user: 'user',
+        password: 'password',
+        database: 'payload'
+      }
+    }),
+  },
 });
-
-export default config;
 ```
 
-## Configuration Options
+## MySQL Adapter Configuration
 
-The MySQL adapter accepts the following options:
+| Option   | Type     | Description                   | Default |
+| -------- | -------- | ----------------------------- | ------- |
+| `pool`   | `Object` | MySQL connection pool options | -       |
+| `prefix` | `string` | Table prefix                  | -       |
+| `idType` | `string` | Type of ID field (auto, uuid) | auto    |
 
-| Option          | Type    | Description                                                  |
-| --------------- | ------- | ------------------------------------------------------------ |
-| `pool`          | Object  | MySQL connection configuration                               |
-| `pool.host`     | String  | MySQL host                                                   |
-| `pool.user`     | String  | MySQL username                                               |
-| `pool.password` | String  | MySQL password                                               |
-| `pool.database` | String  | MySQL database name                                          |
-| `pool.port`     | Number  | MySQL port (optional, defaults to 3306)                      |
-| `prefix`        | String  | Table prefix (optional, defaults to no prefix)               |
-| `idType`        | String  | ID type (optional, "number" or "uuid", defaults to "number") |
-| `autoIncrement` | Boolean | Enable auto-increment for IDs (optional, defaults to true)   |
+## Features
 
-## Transactions
+Current implementation features:
 
-The adapter supports MySQL transactions through Drizzle ORM to ensure data consistency. Transactions are handled internally by the adapter when needed for operations that require atomic changes across multiple tables.
-
-The transaction support is seamlessly integrated with PayloadCMS operations, following the same pattern as the official SQLite and PostgreSQL adapters. No additional configuration is required to enable transaction support.
+- ✅ MySQL database support
+- ✅ Automatic table and schema management
+- ✅ Relationship support
+- ✅ Transaction support through Drizzle ORM
+- ✅ TypeScript compatibility
+- ✅ Basic query filtering
+- ✅ Migration foundation
+- ✅ Versioning support
+- ✅ Localization support
+- [ ] Sorting support
+- [ ] Full text search
 
 ## Supported Field Types
 
-The adapter supports the following PayloadCMS field types:
+All standard PayloadCMS field types are supported.
 
-- text
-- textarea
-- number
-- email
-- date
-- checkbox
-- relationship (including hasMany relationships)
-
-## Testing
-
-You can run a simple connection test to verify your MySQL configuration:
+## Testing MySQL Connection
 
 ```bash
-# Edit test/simple-test.js to match your database credentials
-npm run test
+pnpm test:ts
 ```
 
 ## Limitations
 
-- Currently only supports MySQL databases
-- Some advanced PayloadCMS features like versions and localization are not yet supported
+- Currently only supports MySQL databases.
 
 ## Development
 
-Clone the repository and install dependencies:
-
 ```bash
-git clone https://github.com/payloadcmsdirectory/db-sql.git
-cd payload-sql
-npm install
-```
+# Clone the repository
+git clone https://github.com/yourusername/your-repo.git
 
-Build the project:
+# Install dependencies
+pnpm install
 
-```bash
-npm run build
-```
+# Build the package
+pnpm build
 
-Run tests:
-
-```bash
-npm run test
+# Run tests
+pnpm test
 ```
 
 ## License

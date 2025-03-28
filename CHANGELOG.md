@@ -1,6 +1,34 @@
 # PayloadCMS SQL Database Adapter Changelog
 
-## 0.0.5 (2025-03-28)
+## 0.0.52 - 2025-03-27
+
+### Changed
+
+- Updated the README to correctly reflect versioning and localization as implemented features
+- Fixed bug in MySQL adapter initialization
+
+## 0.0.51 - 2025-03-27
+
+### Added
+
+- Dedicated test script for MySQL connection testing
+- Added autoIncrement and idType configuration options
+
+### Changed
+
+- Refactored adapter to use MySQL instead of SQLite
+- Updated connection handling to use MySQL pool connections
+- Fixed execute function to properly handle MySQL queries
+- Updated schema initialization to follow PayloadCMS standards
+- Improved error handling for MySQL-specific operations
+
+### Fixed
+
+- Type compatibility issues between MySQL adapter and PayloadCMS types
+- Connection pool management and proper cleanup
+- Default snapshot configuration for MySQL dialect
+
+## 0.0.5 (2025-03-27)
 
 ### Added
 
